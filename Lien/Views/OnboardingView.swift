@@ -1,0 +1,244 @@
+import SwiftUI
+
+struct OnboardingView: View {
+    @ObservedObject var viewModel: LienViewModel
+    @State private var currentPage = 0
+    @State private var name = ""
+    @State private var birthDate = Date()
+    @State private var lifeExpectancy = 80
+    
+    var body: some View {
+        VStack {
+            TabView(selection: $currentPage) {
+                welcomeView
+                    .tag(0)
+                
+                nameView
+                    .tag(1)
+                
+                birthdayView
+                    .tag(2)
+                
+                philosophyView
+                    .tag(3)
+            }
+            .tabViewStyle(.page)
+            .indexViewStyle(.page(backgroundDisplayMode: .always))
+            
+            navigationButtons
+        }
+        .padding()
+        .background(AppColor.primaryBackground)
+    }
+    
+    // MARK: - Page Views
+    
+    var welcomeView: some View {
+        VStack(spacing: 30) {
+            Spacer()
+            
+            Image(systemName: "heart.circle.fill")
+                .resizable()
+                .frame(width: 100, height: 100)
+                .foregroundColor(AppColor.accent)
+            
+            Text("Welcome to Lien")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                .foregroundColor(AppColor.text)
+            
+            Text("Your minimalist companion for meaningful relationships.")
+                .font(.title3)
+                .multilineTextAlignment(.center)
+                .foregroundColor(AppColor.secondaryText)
+                .padding(.horizontal)
+            
+            Spacer()
+            
+            Text("Lien helps you stay in touch with the people who matter most in your life.")
+                .font(.body)
+                .multilineTextAlignment(.center)
+                .foregroundColor(AppColor.secondaryText)
+                .padding(.horizontal)
+            
+            Spacer()
+        }
+        .padding()
+    }
+    
+    var nameView: some View {
+        VStack(spacing: 30) {
+            Spacer()
+            
+            Text("What should we call you?")
+                .font(.title)
+                .fontWeight(.bold)
+                .foregroundColor(AppColor.text)
+            
+            LienTextField(title: "Your Name", text: $name, placeholder: "Enter your name")
+            
+            Spacer()
+            
+            Text("This helps personalize your experience.")
+                .font(.caption)
+                .foregroundColor(AppColor.secondaryText)
+                .padding(.horizontal)
+            
+            Spacer()
+        }
+        .padding()
+    }
+    
+    var birthdayView: some View {
+        VStack(spacing: 30) {
+            Spacer()
+            
+            Text("When were you born?")
+                .font(.title)
+                .fontWeight(.bold)
+                .foregroundColor(AppColor.text)
+            
+            DatePicker("Birth Date", selection: $birthDate, displayedComponents: .date)
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+            
+            Stepper("Life Expectancy: \(lifeExpectancy) years", value: $lifeExpectancy, in: 60...120)
+                .padding()
+                .background(AppColor.secondaryBackground)
+                .cornerRadius(10)
+            
+            Spacer()
+            
+            Text("This helps calculate the time perspective features.")
+                .font(.caption)
+                .foregroundColor(AppColor.secondaryText)
+                .padding(.horizontal)
+            
+            Spacer()
+        }
+        .padding()
+    }
+    
+    var philosophyView: some View {
+        ScrollView {
+            VStack(spacing: 30) {
+                Text("A Different Perspective")
+                    .font(.title)
+                    .fontWeight(.bold)
+                    .foregroundColor(AppColor.text)
+                
+                Image(systemName: "hourglass")
+                    .resizable()
+                    .frame(width: 50, height: 80)
+                    .foregroundColor(AppColor.accent)
+                
+                Text("Based on your age, you have approximately:")
+                    .font(.body)
+                    .foregroundColor(AppColor.secondaryText)
+                
+                VStack(spacing: 16) {
+                    TimeInfoCard(
+                        title: "Years",
+                        value: "\(calculateYearsLeft())",
+                        subtitle: "remaining in your life"
+                    )
+                    
+                    TimeInfoCard(
+                        title: "Weeks",
+                        value: "\(calculateYearsLeft() * 52)",
+                        subtitle: "to spend with your loved ones"
+                    )
+                }
+                
+                Text("Lien helps you make the most of this time by reminding you to connect with the people who matter.")
+                    .font(.body)
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(AppColor.secondaryText)
+                    .padding(.horizontal)
+            }
+            .padding()
+        }
+    }
+    
+    // MARK: - Navigation Buttons
+    
+    var navigationButtons: some View {
+        HStack {
+            if currentPage > 0 {
+                Button(action: {
+                    withAnimation {
+                        currentPage -= 1
+                    }
+                }) {
+                    Text("Previous")
+                        .padding()
+                }
+                .buttonStyle(SecondaryButtonStyle())
+            }
+            
+            Spacer()
+            
+            Button(action: {
+                if currentPage < 3 {
+                    withAnimation {
+                        currentPage += 1
+                    }
+                } else {
+                    completeOnboarding()
+                }
+            }) {
+                Text(currentPage < 3 ? "Next" : "Get Started")
+                    .padding()
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(currentPage == 1 && name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .padding()
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func calculateYearsLeft() -> Int {
+        let age = Calendar.current.dateComponents([.year], from: birthDate, to: Date()).year ?? 0
+        return max(0, lifeExpectancy - age)
+    }
+    
+    private func completeOnboarding() {
+        viewModel.userProfile = UserProfile(name: name, dateOfBirth: birthDate)
+        viewModel.userProfile.lifeExpectancy = lifeExpectancy
+        viewModel.saveUserProfile()
+        viewModel.completeOnboarding()
+    }
+}
+
+// MARK: - Helper Views
+
+struct TimeInfoCard: View {
+    let title: String
+    let value: String
+    let subtitle: String
+    
+    var body: some View {
+        VStack(spacing: 5) {
+            Text(title)
+                .font(.headline)
+                .foregroundColor(AppColor.secondaryText)
+            
+            Text(value)
+                .font(.system(size: 44, weight: .bold))
+                .foregroundColor(AppColor.text)
+            
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundColor(AppColor.secondaryText)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(AppColor.secondaryBackground)
+        .cornerRadius(12)
+    }
+}
+
+#Preview {
+    OnboardingView(viewModel: LienViewModel())
+} 
