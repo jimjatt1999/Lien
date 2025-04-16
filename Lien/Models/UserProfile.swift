@@ -4,6 +4,7 @@ struct UserProfile: Codable {
     var name: String
     var dateOfBirth: Date
     var lifeExpectancy: Int = 80
+    var profileImageData: Data?
     
     // The user can customize how many times they want to meet with each contact type
     var meetingGoals: [Person.RelationshipType: Int] = [

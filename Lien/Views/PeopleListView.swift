@@ -1,10 +1,12 @@
 import SwiftUI
+import Contacts
 
 // Renamed from ContactListView
 struct PeopleListView: View {
     @ObservedObject var viewModel: LienViewModel
     @ObservedObject var personStore: PersonStore // Directly observe PersonStore
     @State private var showingAddPerson = false // Renamed state var
+    @State private var showingContactPicker = false // New state for contact picker
     // Removed searchText and activeTagFilter - now managed by ViewModel
     
     // Add state for the active filter category (used by picker/logic)
@@ -27,66 +29,88 @@ struct PeopleListView: View {
     }
     
     var body: some View {
-        NavigationView {
-            ZStack(alignment: .bottomTrailing) {
-                VStack(spacing: 0) {
-                    // Search bar - bind to viewModel.searchText
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(AppColor.secondaryText)
-                        
-                        TextField("Search people", text: $viewModel.searchText) // Bind to viewModel
-                            .foregroundColor(AppColor.text)
-                            .submitLabel(.search)
-                    }
-                    .padding()
-                    .background(AppColor.cardBackground)
-                    .cornerRadius(10)
-                    .padding(.horizontal)
+        ZStack(alignment: .bottomTrailing) {
+            VStack(spacing: 0) {
+                // Search bar - bind to viewModel.searchText
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(AppColor.secondaryText)
                     
-                    // Filter Picker
-                    Picker("Filter", selection: $activeFilterCategory) {
-                        ForEach(PeopleListFilter.allCases, id: \.self) { filter in
-                            Text(filter.displayName).tag(filter)
-                        }
-                    }
-                    .pickerStyle(SegmentedPickerStyle())
-                    .padding(.horizontal)
-                    .padding(.bottom, 10)
-                    
-                    // Display active tag filter if present - use viewModel.activeTagFilter
-                    if let activeTag = viewModel.activeTagFilter {
-                        activeFilterView(tag: activeTag)
-                    }
-                    
-                    if viewModel.personStore.people.isEmpty && viewModel.searchText.isEmpty && viewModel.activeTagFilter == nil {
-                        emptyStateView
-                    } else {
-                        peopleListContent // Renamed content view variable
-                    }
-                }
-                .background(AppColor.cardBackground)
-
-                Button(action: {
-                    showingAddPerson = true
-                }) {
-                    Image(systemName: "plus")
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Circle().fill(AppColor.accent))
-                        .shadow(radius: 4)
+                    TextField("Search people", text: $viewModel.searchText) // Bind to viewModel
+                        .foregroundColor(AppColor.text)
+                        .submitLabel(.search)
                 }
                 .padding()
-            }
-            .navigationTitle("Your People")
-            .navigationBarTitleDisplayMode(.large)
-            .sheet(isPresented: $showingAddPerson) {
-                NavigationView {
-                    PersonEditView(viewModel: viewModel, isPresented: $showingAddPerson)
-                        .navigationTitle("New Person")
+                .background(AppColor.cardBackground)
+                .cornerRadius(10)
+                .padding(.horizontal)
+                
+                // Filter Picker
+                Picker("Filter", selection: $activeFilterCategory) {
+                    ForEach(PeopleListFilter.allCases, id: \.self) { filter in
+                        Text(filter.displayName).tag(filter)
+                    }
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                .padding(.horizontal)
+                .padding(.bottom, 10)
+                
+                // Display active tag filter if present - use viewModel.activeTagFilter
+                if let activeTag = viewModel.activeTagFilter {
+                    activeFilterView(tag: activeTag)
+                }
+                
+                if viewModel.personStore.people.isEmpty && viewModel.searchText.isEmpty && viewModel.activeTagFilter == nil {
+                    emptyStateView
+                } else {
+                    peopleListContent // Renamed content view variable
                 }
             }
+            .background(AppColor.cardBackground)
+
+            // FAB Menu Button
+            Menu {
+                Button {
+                    showingAddPerson = true // Existing action for manual add
+                } label: {
+                    Label("Add Person Manually", systemImage: "person.fill.badge.plus")
+                }
+                
+                Button {
+                    // Action to show contact picker - will be added
+                    showingContactPicker = true 
+                } label: {
+                    Label("Import from Contacts", systemImage: "person.crop.circle.badge.arrow.down")
+                }
+                
+            } label: {
+                // The FAB appearance
+                Image(systemName: "plus")
+                    .foregroundColor(.white)
+                    .padding()
+                    .background(Circle().fill(AppColor.accent))
+                    .shadow(radius: 4)
+                    .rotationEffect(.degrees(showingAddPerson ? 45 : 0)) // Optional: rotate icon
+                    .animation(.interactiveSpring(), value: showingAddPerson)
+            }
+            .padding()
         }
+        .navigationTitle("Your People")
+        .navigationBarTitleDisplayMode(.large)
+        .sheet(isPresented: $showingAddPerson) { // Sheet for manual add
+             NavigationView {
+                 PersonEditView(viewModel: viewModel, isPresented: $showingAddPerson)
+                     .navigationTitle("New Person")
+             }
+         }
+        // Add sheet for contact picker
+        .sheet(isPresented: $showingContactPicker) {
+            // Contact Picker View will go here
+             ContactPickerView { selectedContacts in
+                 // Handle imported contacts
+                 importContacts(selectedContacts)
+             }
+         }
     }
     
     // MARK: - Content Views
@@ -205,6 +229,50 @@ struct PeopleListView: View {
     }
     
     // Removed filterContacts - logic moved to ViewModel
+    
+    // Add import function logic
+    private func importContacts(_ contacts: [CNContact]) {
+        print("DEBUG: Attempting to import \(contacts.count) contacts.")
+        
+        var importedCount = 0
+        for contact in contacts {
+            // --- Extract Data --- 
+            let name = CNContactFormatter.string(from: contact, style: .fullName) ?? ""
+            // Skip if no name or if person might already exist (simple check)
+            if name.isEmpty || viewModel.personStore.people.contains(where: { $0.name == name && $0.phone == contact.phoneNumbers.first?.value.stringValue }) {
+                 print("  - Skipping: \(name) (empty name or potential duplicate)")
+                 continue // Skip this contact
+            }
+            
+            let phone = contact.phoneNumbers.first?.value.stringValue
+            let email = contact.emailAddresses.first?.value as String?
+            let birthdayComponents = contact.birthday
+            let birthday = birthdayComponents?.date // Convert components to Date?
+            let imageData = contact.imageDataAvailable ? contact.imageData : nil
+
+            // --- Create Person Object --- 
+            // Use defaults for relationshipType and meetFrequency, user can edit later
+            var newPerson = Person(
+                name: name,
+                birthday: birthday,
+                relationshipType: .friend, // Default type
+                meetFrequency: .monthly   // Default frequency
+            )
+            newPerson.phone = phone
+            newPerson.email = email
+            newPerson.image = imageData
+            
+            // TODO: Import anniversary if possible (requires specific keys/labels in Contacts)
+            // TODO: Import tags? (Less likely to be standard)
+            
+            // --- Add to Store --- 
+            viewModel.personStore.addPerson(newPerson)
+            importedCount += 1
+            print("  - Imported: \(newPerson.name)")
+        }
+        print("DEBUG: Successfully imported \(importedCount) contacts.")
+        // TODO: Maybe show an alert to the user confirming import count?
+    }
 }
 
 // MARK: - Person Row (Renamed from Contact Row)

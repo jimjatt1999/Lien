@@ -18,6 +18,9 @@ struct PersonEditView: View {
     @State private var customPlatformName = "" // New state for custom platform name
     @State private var customSocialLinks: [(key: String, value: String)] = []
     
+    // State for adding/managing links
+    @State private var showingAddLinkSheet = false
+    
     let socialMediaTypes = ["Instagram", "WhatsApp", "Facebook", "Twitter", "LinkedIn", "Custom"]
     
     init(viewModel: LienViewModel, isPresented: Binding<Bool>, person: Person? = nil) {
@@ -53,6 +56,7 @@ struct PersonEditView: View {
                 relationshipSection
                 tagsSection
                 socialMediaSection
+                relationshipsSection
                 notesSection
             }
             .navigationTitle(isNewPerson ? "New Person" : "Edit Person")
@@ -71,6 +75,9 @@ struct PersonEditView: View {
             // --- Sheets and Alerts --- 
             .sheet(isPresented: $showingImagePicker) {
                 ImagePicker(selectedImage: $selectedImage)
+            }
+            .sheet(isPresented: $showingAddLinkSheet) {
+                AddLinkView(viewModel: viewModel, sourcePersonId: person.id)
             }
             // --- End Sheets and Alerts --- 
         }
@@ -201,6 +208,41 @@ struct PersonEditView: View {
                     isCustom: true,
                     index: index
                 )
+            }
+        }
+    }
+    
+    private var relationshipsSection: some View {
+        Section(header: Text("Relationships")) {
+            // List existing links
+            ForEach(viewModel.getLinks(for: person)) { link in
+                HStack {
+                    // Find the other person involved in the link
+                    let otherPersonId = (link.person1ID == person.id) ? link.person2ID : link.person1ID
+                    if let otherPerson = viewModel.personStore.people.first(where: { $0.id == otherPersonId }) {
+                        Text(otherPerson.name)
+                        Spacer()
+                        Text(link.label)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("Unknown Person") // Fallback if person not found
+                        Spacer()
+                        Text(link.label)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .onDelete { indexSet in
+                removeLinks(at: indexSet)
+            }
+            
+            // Button to add a new link
+            Button {
+                showingAddLinkSheet = true
+            } label: {
+                Label("Add Relationship Link", systemImage: "link.badge.plus")
             }
         }
     }
@@ -386,6 +428,14 @@ struct PersonEditView: View {
             if let idx = index, idx < customSocialLinks.count {
                 customSocialLinks.remove(at: idx)
             }
+        }
+    }
+    
+    private func removeLinks(at offsets: IndexSet) {
+        let linksToRemove = offsets.map { viewModel.getLinks(for: person)[$0] }
+        for link in linksToRemove {
+            viewModel.removeLink(link)
+            // Force refresh? ViewModel should handle this via @Published
         }
     }
 }

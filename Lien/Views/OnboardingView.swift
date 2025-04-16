@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct OnboardingView: View {
     @ObservedObject var viewModel: LienViewModel
@@ -6,6 +7,13 @@ struct OnboardingView: View {
     @State private var name = ""
     @State private var birthDate = Date()
     @State private var lifeExpectancy = 80
+    
+    // State for Photo Picker
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
+    @State private var selectedImageData: Data? = nil
+    
+    // Calculate total pages
+    private let totalPages = 5 // Welcome, Name, Picture, Birthday, Philosophy
     
     var body: some View {
         VStack {
@@ -16,11 +24,15 @@ struct OnboardingView: View {
                 nameView
                     .tag(1)
                 
-                birthdayView
+                // Add Profile Image View
+                profileImageView
                     .tag(2)
                 
-                philosophyView
+                birthdayView
                     .tag(3)
+                
+                philosophyView
+                    .tag(4)
             }
             .tabViewStyle(.page)
             .indexViewStyle(.page(backgroundDisplayMode: .always))
@@ -29,6 +41,15 @@ struct OnboardingView: View {
         }
         .padding()
         .background(AppColor.primaryBackground)
+        // Add PhotosPicker selection handling
+        .onChange(of: selectedPhotoItem) { _, newItem in
+            Task {
+                // Retrieve selected asset in the form of Data
+                if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                    selectedImageData = data
+                }
+            }
+        }
     }
     
     // MARK: - Page Views
@@ -83,6 +104,63 @@ struct OnboardingView: View {
                 .font(.caption)
                 .foregroundColor(AppColor.secondaryText)
                 .padding(.horizontal)
+            
+            Spacer()
+        }
+        .padding()
+    }
+    
+    var profileImageView: some View {
+        VStack(spacing: 30) {
+            Spacer()
+            
+            Text("Add a Profile Picture?")
+                .font(.title)
+                .fontWeight(.bold)
+                .foregroundColor(AppColor.text)
+                .padding(.bottom, 10)
+            
+            Text("(Optional) This will represent you in the network view.")
+                .font(.callout)
+                .foregroundColor(AppColor.secondaryText)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+
+            // PhotosPicker
+            PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                Group {
+                    if let imageData = selectedImageData, let uiImage = UIImage(data: imageData) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 150, height: 150)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(AppColor.accent, lineWidth: 2))
+                    } else {
+                        Circle()
+                            .fill(AppColor.cardBackground)
+                            .frame(width: 150, height: 150)
+                            .overlay(
+                                Image(systemName: "person.crop.circle.badge.plus")
+                                    .font(.system(size: 70))
+                                    .foregroundColor(AppColor.secondaryText)
+                            )
+                    }
+                }
+            }
+            .buttonStyle(.plain) // Use plain style to make the content tappable
+            
+            Spacer()
+            
+            // Button to remove selection if needed
+            if selectedImageData != nil {
+                Button("Remove Image") {
+                    selectedPhotoItem = nil
+                    selectedImageData = nil
+                }
+                .font(.caption)
+                .foregroundColor(.red)
+            }
             
             Spacer()
         }
@@ -183,7 +261,7 @@ struct OnboardingView: View {
             Spacer()
             
             Button(action: {
-                if currentPage < 3 {
+                if currentPage < totalPages - 1 {
                     withAnimation {
                         currentPage += 1
                     }
@@ -191,7 +269,7 @@ struct OnboardingView: View {
                     completeOnboarding()
                 }
             }) {
-                Text(currentPage < 3 ? "Next" : "Get Started")
+                Text(currentPage < totalPages - 1 ? "Next" : "Get Started")
                     .padding()
             }
             .buttonStyle(PrimaryButtonStyle())
@@ -210,6 +288,9 @@ struct OnboardingView: View {
     private func completeOnboarding() {
         viewModel.userProfile = UserProfile(name: name, dateOfBirth: birthDate)
         viewModel.userProfile.lifeExpectancy = lifeExpectancy
+        // Save image data
+        viewModel.userProfile.profileImageData = selectedImageData
+        
         viewModel.saveUserProfile()
         viewModel.completeOnboarding()
     }

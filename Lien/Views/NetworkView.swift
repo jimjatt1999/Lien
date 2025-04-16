@@ -3,11 +3,9 @@ import SwiftUI
 struct NetworkView: View {
     @ObservedObject var viewModel: LienViewModel
     
-    // State for force-directed node positions 
+    // State for node positions and simulation
     @State private var nodePositions: [UUID: CGPoint] = [:]
     @State private var nodeVelocities: [UUID: CGVector] = [:]
-    
-    // Animation state
     @State private var isSimulating: Bool = true
     @State private var timer: Timer? = nil
     
@@ -45,39 +43,89 @@ struct NetworkView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            // Use ZStack instead of Canvas
             ZStack {
-                // Background
+                // Background (can remain)
                 Color.black.edgesIgnoringSafeArea(.all)
-                
-                // Legend at the bottom
-                VStack {
-                    Spacer()
-                    relationshipLegend
-                        .padding()
-                }
-                
-                // Network graph
-                Canvas { context, size in
-                    // Apply pan/zoom transform
-                    context.translateBy(x: currentOffset.width + size.width / 2, y: currentOffset.height + size.height / 2)
-                    context.scaleBy(x: currentScale, y: currentScale)
-                    context.translateBy(x: -size.width / 2, y: -size.height / 2)
 
-                    // --- Drawing ---
-                    drawConnectionLines(context: context)
-                    drawNodes(context: context, size: size)
+                // Layer for Explicit Peer-to-Peer Connection Lines (drawn behind nodes)
+                ForEach(viewModel.linkStore.links) { link in
+                    if let pos1 = nodePositions[link.person1ID], let pos2 = nodePositions[link.person2ID] {
+                        let mockStrength = 0.7 // Keep mock strength for peer links for now
+                        let lineWidth = connectionLineWidth * (0.5 + mockStrength * 0.5)
+                        
+                        Path { path in
+                            path.move(to: pos1)
+                            path.addLine(to: pos2)
+                        }
+                        // Style for peer-to-peer links (e.g., subtle gray)
+                        .stroke(Color.gray.opacity(0.5), lineWidth: lineWidth * 0.8) // Make them slightly thinner/dimmer
+                    }
                 }
-                .gesture(dragGesture(size: geometry.size))
-                .gesture(magnificationGesture(size: geometry.size))
-                .onAppear {
-                    initializeNodePositions(size: geometry.size)
-                    startSimulation()
+                .frame(width: geometry.size.width, height: geometry.size.height) 
+                .offset(x: currentOffset.width, y: currentOffset.height)
+                .scaleEffect(currentScale)
+                
+                // Layer for Implicit "You"-to-Person Connection Lines (drawn behind nodes)
+                if let userPos = nodePositions[userNodeID] {
+                    ForEach(viewModel.personStore.people) { person in
+                        if let personPos = nodePositions[person.id] {
+                            Path { path in
+                                path.move(to: userPos)
+                                path.addLine(to: personPos)
+                            }
+                            // Style based on relationship health
+                            .stroke(
+                                person.relationshipHealth.color.opacity(0.7), // Use health color with some opacity
+                                lineWidth: connectionLineWidth * CGFloat(person.relationshipHealth.thicknessMultiplier) // Vary thickness
+                            )
+                        }
+                    }
+                    .frame(width: geometry.size.width, height: geometry.size.height) 
+                    .offset(x: currentOffset.width, y: currentOffset.height)
+                    .scaleEffect(currentScale)
                 }
-                .onDisappear {
-                    stopSimulation()
+
+                // Layer for Nodes (drawn on top of lines)
+                ForEach(viewModel.personStore.people) { person in
+                    if let position = nodePositions[person.id] {
+                        // Wrap Node in NavigationLink
+                        NavigationLink(destination: PersonDetailView(viewModel: viewModel, person: person)) {
+                            NodeView(person: person, size: person.isCorePerson ? coreNodeSize : nodeSize)
+                        }
+                        .position(x: position.x, y: position.y) // Position the link
+                    }
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height) // Ensure nodes are positioned within bounds
+                .offset(x: currentOffset.width, y: currentOffset.height)
+                .scaleEffect(currentScale)
+                
+                // User Node (centered, can be separate or part of the loop if needed)
+                if let userPosition = nodePositions[userNodeID] {
+                    // Use UserProfile image data if available
+                    Group {
+                        if let imageData = viewModel.userProfile.profileImageData, let uiImage = UIImage(data: imageData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: userNodeSize, height: userNodeSize)
+                                .clipShape(Circle())
+                        } else {
+                            // Fallback placeholder
+                            Circle()
+                                .fill(Color.white) // Keep white background for contrast
+                                .frame(width: userNodeSize, height: userNodeSize)
+                                .overlay(Text("You").font(.caption).foregroundColor(.black))
+                        }
+                    }
+                    .overlay(Circle().stroke(Color.gray, lineWidth: 2)) // Keep overlay border
+                    .position(x: userPosition.x, y: userPosition.y)
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .offset(x: currentOffset.width, y: currentOffset.height)
+                    .scaleEffect(currentScale)
                 }
                 
-                // Controls overlay
+                // Legend and Controls can stay on top
                 VStack {
                     HStack {
                         Spacer()
@@ -89,7 +137,20 @@ struct NetworkView: View {
                         .padding()
                     }
                     Spacer()
+                    relationshipLegend
+                        .padding()
                 }
+            }
+            .clipped() // Clip content to bounds
+            .contentShape(Rectangle()) // Make entire area interactive for gestures
+            .gesture(dragGesture(size: geometry.size))
+            .gesture(magnificationGesture(size: geometry.size))
+            .onAppear {
+                initializeNodePositions(size: geometry.size)
+                startSimulation()
+            }
+            .onDisappear {
+                stopSimulation()
             }
                  }
                 .navigationTitle("Network")
@@ -235,118 +296,11 @@ struct NetworkView: View {
         }
     }
 
-    // MARK: - Drawing Methods
+    // MARK: - Drawing Methods (No longer needed - functionality moved to ZStack)
+    // private func drawConnectionLines(context: GraphicsContext) { ... }
+    // private func drawNodes(context: GraphicsContext, size: CGSize) { ... }
     
-    private func drawConnectionLines(context: GraphicsContext) {
-        // First pass - draw connection lines
-        for link in viewModel.linkStore.links {
-            guard let pos1 = nodePositions[link.person1ID], let pos2 = nodePositions[link.person2ID] else { continue }
-            
-            // Just use a fixed strength since RelationshipLink doesn't have a strength property
-            let mockStrength = 0.7 // Mock fixed value between 0-1
-            let lineWidth = connectionLineWidth * (0.5 + mockStrength * 0.5)
-            
-            // Draw connection with opacity based on mock strength
-            var path = Path()
-            path.move(to: pos1)
-            path.addLine(to: pos2)
-            context.stroke(path, with: .color(Color.white.opacity(0.3)), lineWidth: lineWidth)
-        }
-    }
-    
-    private func drawNodes(context: GraphicsContext, size: CGSize) {
-        // First, draw user node
-        if let userPosition = nodePositions[userNodeID] {
-            let rect = CGRect(x: userPosition.x - userNodeSize/2, y: userPosition.y - userNodeSize/2, width: userNodeSize, height: userNodeSize)
-            let placeholderUser = Person(id: userNodeID, name: "You", relationshipType: .other, meetFrequency: .monthly)
-            drawNodeFallback(context: context, person: placeholderUser, rect: rect, nodeRadius: userNodeSize/2, includeBorder: true, borderColor: .white)
-        }
-        
-        // Draw all people nodes
-        for person in viewModel.personStore.people {
-            guard let position = nodePositions[person.id] else { continue }
-            
-            // Determine node size based on type
-            let nodeRadius = (person.isCorePerson ? coreNodeSize : nodeSize) / 2.0
-            let rect = CGRect(x: position.x - nodeRadius, y: position.y - nodeRadius, width: nodeRadius * 2, height: nodeRadius * 2)
-            
-            // Get relationship color for border
-            let relationshipColor = relationshipColors[person.relationshipType] ?? .gray
-            
-            // If person has an image, draw it
-            if let imageData = person.image, let uiImage = UIImage(data: imageData) {
-                let swiftUIImage = Image(uiImage: uiImage)
-                
-                // Draw bordered circle
-                drawNodeWithImage(context: context, person: person, rect: rect, image: swiftUIImage, borderColor: relationshipColor)
-            } else {
-                // Draw fallback with initials
-                drawNodeFallback(context: context, person: person, rect: rect, nodeRadius: nodeRadius, includeBorder: true, borderColor: relationshipColor)
-            }
-            
-            // Label node with name
-            if currentScale > 0.8 {
-                let fontSize = min(14 * currentScale, 16)
-                let nameText = Text(person.name)
-                    .font(.system(size: fontSize, weight: .medium))
-                    .foregroundColor(.white)
-                
-                // Draw name below the node
-                context.draw(nameText, at: CGPoint(x: position.x, y: position.y + nodeRadius + 15), anchor: .top)
-            }
-        }
-    }
-    
-    private func drawNodeWithImage(context: GraphicsContext, person: Person, rect: CGRect, image: Image, borderColor: Color) {
-        // Draw background circle (will be visible if image has transparency)
-        let circlePath = Path(ellipseIn: rect)
-        let avatarColor = AppColor.avatarColor(for: person.id)
-        context.fill(circlePath, with: .color(avatarColor))
-        
-        // Convert SwiftUI Image to UIImage for custom drawing
-        if let uiImage = person.image.flatMap(UIImage.init(data:)) {
-            // Create a temporary context to mask the image
-            let renderer = UIGraphicsImageRenderer(size: CGSize(width: rect.width, height: rect.height))
-            let circularImage = renderer.image { context in
-                // Create circle path for clipping
-                let circlePath = UIBezierPath(ovalIn: CGRect(x: 0, y: 0, width: rect.width, height: rect.height))
-                circlePath.addClip()
-                
-                // Draw the image within the clipping path
-                uiImage.draw(in: CGRect(x: 0, y: 0, width: rect.width, height: rect.height))
-            }
-            
-            // Draw the masked circular image
-            if let cgImage = circularImage.cgImage {
-                context.draw(Image(uiImage: UIImage(cgImage: cgImage)), in: rect)
-            }
-        }
-        
-        // Draw border over the top
-        context.stroke(circlePath, with: .color(borderColor), lineWidth: 2.0)
-    }
-    
-    private func drawNodeFallback(context: GraphicsContext, person: Person, rect: CGRect, nodeRadius: CGFloat, includeBorder: Bool = true, borderColor: Color = .white) {
-        let initials = person.initials
-        let circlePath = Path(ellipseIn: rect)
-        
-        // Background color for node
-        let avatarColor = AppColor.avatarColor(for: person.id)
-        context.fill(circlePath, with: .color(avatarColor))
-        
-        // Border
-        if includeBorder {
-            context.stroke(circlePath, with: .color(borderColor), lineWidth: 2.0)
-        }
-        
-        // Draw initials
-        let text = Text(initials)
-                    .font(.system(size: nodeRadius * 0.9, weight: .medium))
-                    .foregroundColor(.white)
-        context.draw(text, at: CGPoint(x: rect.midX, y: rect.midY), anchor: .center)
-    }
-    
-    // MARK: - Gestures
+    // MARK: - Gesture Handlers
     
     private func dragGesture(size: CGSize) -> some Gesture {
          DragGesture()
@@ -382,6 +336,25 @@ struct NetworkView: View {
     }
 }
 
+// MARK: - Helper View for Node
+
+struct NodeView: View {
+    let person: Person
+    let size: CGFloat
+    
+    var body: some View {
+        ZStack {
+            // Use relationship color for background?
+            // Or keep simple avatar?
+            AvatarView(person: person, size: size)
+            // Add border or other styling?
+            Circle().stroke(person.relationshipHealth.color, lineWidth: 2)
+        }
+        .frame(width: size, height: size)
+        // Ensure taps pass through ZStack layers if needed, but NavigationLink should handle it
+    }
+}
+
 // MARK: - Extensions
 
 // Add display name property to RelationshipType
@@ -394,6 +367,18 @@ extension Person.RelationshipType {
         case .colleague: return "Colleague"
         case .acquaintance: return "Acquaintance"
         case .other: return "Other"
+        }
+    }
+}
+
+// Add thickness multiplier to RelationshipHealthStatus (Corrected Cases)
+extension Person.RelationshipHealthStatus {
+    var thicknessMultiplier: Double {
+        switch self {
+        case .thriving: return 1.8
+        case .stable: return 1.2
+        case .needsAttention: return 0.8
+        case .unknown: return 0.6 // Thinner for unknown
         }
     }
 }

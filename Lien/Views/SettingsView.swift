@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct SettingsView: View {
     @ObservedObject var viewModel: LienViewModel
@@ -10,6 +11,10 @@ struct SettingsView: View {
     // Store goals locally to avoid direct binding issues in ForEach
     @State private var meetingGoals: [Person.RelationshipType: Int]
     
+    // State for Photo Picker
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
+    @State private var selectedImageData: Data? = nil
+    
     init(viewModel: LienViewModel) {
         self.viewModel = viewModel
         self._name = State(initialValue: viewModel.userProfile.name)
@@ -17,12 +22,17 @@ struct SettingsView: View {
         self._lifeExpectancy = State(initialValue: viewModel.userProfile.lifeExpectancy)
         // Initialize local state for goals
         self._meetingGoals = State(initialValue: viewModel.userProfile.meetingGoals)
+        // Initialize image data state from existing profile
+        self._selectedImageData = State(initialValue: viewModel.userProfile.profileImageData)
     }
     
     var body: some View {
         NavigationView { // Wrap in NavigationView for title/buttons
             Form {
                 Section(header: Text("Personal Information")) {
+                    // Add profile image section at the top
+                    profileImageSection
+                    
                     LienTextField(title: "Your Name", text: $name, placeholder: "Enter your name")
                     DatePicker("Date of Birth", selection: $dateOfBirth, displayedComponents: .date)
                     Stepper("Life Expectancy: \(lifeExpectancy) years", value: $lifeExpectancy, in: 60...120)
@@ -76,6 +86,13 @@ struct SettingsView: View {
                          .disabled(!isFormValid) // Disable if invalid
                  }
              }
+            .onChange(of: selectedPhotoItem) { _, newItem in // Add onChange for PhotosPicker
+                Task {
+                    if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                        selectedImageData = data
+                    }
+                }
+            }
         }
     }
     
@@ -108,6 +125,46 @@ struct SettingsView: View {
          }
     }
     
+    // MARK: - Profile Image Section
+    
+    var profileImageSection: some View {
+        HStack {
+            Spacer()
+            PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                VStack {
+                    Group {
+                        if let imageData = selectedImageData, let uiImage = UIImage(data: imageData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 100, height: 100)
+                                .clipShape(Circle())
+                        } else {
+                            Circle()
+                                .fill(AppColor.cardBackground)
+                                .frame(width: 100, height: 100)
+                                .overlay(
+                                    Image(systemName: "person.circle") // Placeholder icon
+                                        .font(.system(size: 50))
+                                        .foregroundColor(AppColor.secondaryText)
+                                )
+                        }
+                    }
+                    .overlay(Circle().stroke(AppColor.accent, lineWidth: 2))
+                    
+                    Text("Tap to change photo")
+                        .font(.caption)
+                        .foregroundColor(AppColor.secondaryText)
+                        .padding(.top, 4)
+                }
+            }
+            .buttonStyle(.plain)
+            Spacer()
+        }
+        .listRowInsets(EdgeInsets()) // Remove default padding
+        .padding(.vertical) // Add some vertical padding
+    }
+    
     // MARK: - Computed Properties
     
     private var isFormValid: Bool {
@@ -127,7 +184,9 @@ struct SettingsView: View {
         viewModel.userProfile.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         viewModel.userProfile.dateOfBirth = dateOfBirth
         viewModel.userProfile.lifeExpectancy = lifeExpectancy
-        viewModel.userProfile.meetingGoals = meetingGoals // Save updated goals
+        viewModel.userProfile.meetingGoals = meetingGoals
+        // Save the selected image data
+        viewModel.userProfile.profileImageData = selectedImageData
         
         // Save to persistent storage
         viewModel.saveUserProfile()
