@@ -10,9 +10,14 @@ struct MainTabView: View {
                     Label("Home", systemImage: "house.fill")
                 }
             
-            ContactListView(viewModel: viewModel)
+            PeopleListView(viewModel: viewModel)
                 .tabItem {
-                    Label("Contacts", systemImage: "person.2.fill")
+                    Label("People", systemImage: "person.2.fill")
+                }
+            
+            NetworkView(viewModel: viewModel)
+                .tabItem {
+                    Label("Network", systemImage: "globe.americas.fill")
                 }
         }
     }

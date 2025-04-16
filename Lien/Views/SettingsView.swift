@@ -7,137 +7,151 @@ struct SettingsView: View {
     @State private var name: String
     @State private var dateOfBirth: Date
     @State private var lifeExpectancy: Int
+    // Store goals locally to avoid direct binding issues in ForEach
+    @State private var meetingGoals: [Person.RelationshipType: Int]
     
     init(viewModel: LienViewModel) {
         self.viewModel = viewModel
         self._name = State(initialValue: viewModel.userProfile.name)
         self._dateOfBirth = State(initialValue: viewModel.userProfile.dateOfBirth)
         self._lifeExpectancy = State(initialValue: viewModel.userProfile.lifeExpectancy)
+        // Initialize local state for goals
+        self._meetingGoals = State(initialValue: viewModel.userProfile.meetingGoals)
     }
     
     var body: some View {
-        Form {
-            Section(header: Text("Personal Information")) {
-                LienTextField(title: "Your Name", text: $name, placeholder: "Enter your name")
-                
-                DatePicker("Date of Birth", selection: $dateOfBirth, displayedComponents: .date)
-                
-                Stepper("Life Expectancy: \(lifeExpectancy) years", value: $lifeExpectancy, in: 60...120)
-            }
-            
-            Section(header: Text("Meeting Goals")) {
-                ForEach(Contact.RelationshipType.allCases, id: \.self) { type in
-                    meetingGoalRow(for: type)
-                }
-            }
-            
-            Section(header: Text("Export/Import")) {
-                Button(action: {
-                    // Handle export action
-                }) {
-                    Label("Export Contacts", systemImage: "square.and.arrow.up")
+        NavigationView { // Wrap in NavigationView for title/buttons
+            Form {
+                Section(header: Text("Personal Information")) {
+                    LienTextField(title: "Your Name", text: $name, placeholder: "Enter your name")
+                    DatePicker("Date of Birth", selection: $dateOfBirth, displayedComponents: .date)
+                    Stepper("Life Expectancy: \(lifeExpectancy) years", value: $lifeExpectancy, in: 60...120)
                 }
                 
-                Button(action: {
-                    // Handle import action
-                }) {
-                    Label("Import Contacts", systemImage: "square.and.arrow.down")
-                }
-            }
-            
-            Section(header: Text("About")) {
-                HStack {
-                    Text("Version")
-                    Spacer()
-                    Text("1.0.0")
-                        .foregroundColor(AppColor.secondaryText)
-                }
-                
-                Button(action: {
-                    if let url = URL(string: "https://linktr.ee/yourusername") {
-                        UIApplication.shared.open(url)
+                Section(header: Text("Default Meeting Goals")) {
+                    ForEach(Person.RelationshipType.allCases, id: \.self) { type in
+                        meetingGoalRow(for: type)
                     }
-                }) {
-                    Text("Support & Feedback")
                 }
                 
-                Button(action: {
-                    // Reset onboarding
-                    UserDefaults.standard.set(false, forKey: "is-onboarded")
-                    viewModel.isOnboarded = false
-                    presentationMode.wrappedValue.dismiss()
-                }) {
-                    Text("Reset Onboarding")
-                        .foregroundColor(.red)
+                Section(header: Text("Data Management")) {
+                    Button(action: { /* Handle export */ }) {
+                        Label("Export Data", systemImage: "square.and.arrow.up")
+                    }
+                    Button(action: { /* Handle import */ }) {
+                        Label("Import Data", systemImage: "square.and.arrow.down")
+                    }
+                }
+                
+                Section(header: Text("About")) {
+                    HStack {
+                        Text("Version")
+                        Spacer()
+                        Text(appVersion) // Use helper for version
+                            .foregroundColor(AppColor.secondaryText)
+                    }
+                    
+                    // Link to support/feedback
+                    if let url = URL(string: "https://www.example.com/support") { // Replace with actual URL
+                         Link(destination: url) {
+                             Text("Support & Feedback")
+                         }
+                     }
+                    
+                    Button("Reset Onboarding", role: .destructive) { // Use destructive role
+                        resetOnboarding()
+                    }
                 }
             }
-            
-            Section {
-                Button(action: saveSettings) {
-                    Text("Save Changes")
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(AppColor.accent)
-                        .cornerRadius(10)
-                }
-                .buttonStyle(PlainButtonStyle())
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-            }
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                 ToolbarItem(placement: .navigationBarLeading) {
+                     Button("Cancel") {
+                         presentationMode.wrappedValue.dismiss()
+                     }
+                 }
+                 ToolbarItem(placement: .navigationBarTrailing) {
+                     Button("Save", action: saveSettings)
+                         .disabled(!isFormValid) // Disable if invalid
+                 }
+             }
         }
     }
     
     // MARK: - Helper Views
     
-    func meetingGoalRow(for type: Contact.RelationshipType) -> some View {
+    func meetingGoalRow(for type: Person.RelationshipType) -> some View {
+        // Use binding to local state
         let binding = Binding<Int>(
             get: {
-                viewModel.userProfile.meetingGoals[type] ?? 0
+                meetingGoals[type] ?? Person.defaultMeetingGoal(for: type) // Provide default
             },
             set: { newValue in
-                var updatedGoals = viewModel.userProfile.meetingGoals
-                updatedGoals[type] = newValue
-                viewModel.userProfile.meetingGoals = updatedGoals
+                 meetingGoals[type] = newValue
             }
         )
         
-        return VStack(alignment: .leading, spacing: 8) {
-            Text(type.rawValue)
-                .font(.headline)
-            
-            HStack {
-                Text("Meet ")
-                
-                Picker("", selection: binding) {
-                    Text("Yearly").tag(1)
-                    Text("Quarterly").tag(4)
-                    Text("Monthly").tag(12)
-                    Text("Bi-weekly").tag(26)
-                    Text("Weekly").tag(52)
-                }
-                .pickerStyle(MenuPickerStyle())
-                
-                Spacer()
-            }
-            .font(.subheadline)
-        }
-        .padding(.vertical, 4)
+        return HStack {
+             Text(type.rawValue)
+             Spacer()
+             Picker("", selection: binding) {
+                 Text("Never").tag(0)
+                 Text("Yearly").tag(1)
+                 Text("Quarterly").tag(4)
+                 Text("Monthly").tag(12)
+                 Text("Bi-Weekly").tag(26)
+                 Text("Weekly").tag(52)
+                 // Add Daily? .tag(365)
+             }
+             .pickerStyle(MenuPickerStyle())
+         }
     }
     
-    // MARK: - Helper Methods
+    // MARK: - Computed Properties
+    
+    private var isFormValid: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    
+    private var appVersion: String {
+         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "N/A"
+     }
+
+    // MARK: - Actions
     
     private func saveSettings() {
+        guard isFormValid else { return }
+        
         // Update user profile
-        viewModel.userProfile.name = name
+        viewModel.userProfile.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         viewModel.userProfile.dateOfBirth = dateOfBirth
         viewModel.userProfile.lifeExpectancy = lifeExpectancy
+        viewModel.userProfile.meetingGoals = meetingGoals // Save updated goals
         
         // Save to persistent storage
         viewModel.saveUserProfile()
         
         // Dismiss settings sheet
         presentationMode.wrappedValue.dismiss()
+    }
+    
+    private func resetOnboarding() {
+         UserDefaults.standard.set(false, forKey: "is-onboarded")
+         viewModel.isOnboarded = false
+         presentationMode.wrappedValue.dismiss()
+     }
+}
+
+// Add default goals to Person model if needed
+extension Person {
+    static func defaultMeetingGoal(for type: RelationshipType) -> Int {
+        switch type {
+        case .closeFriend: return 12 // Monthly default
+        case .family: return 12 // Monthly default
+        case .friend: return 4 // Quarterly default
+        default: return 1 // Yearly default
+        }
     }
 }
 

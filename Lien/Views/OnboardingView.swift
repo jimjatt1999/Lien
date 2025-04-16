@@ -104,8 +104,9 @@ struct OnboardingView: View {
             
             Stepper("Life Expectancy: \(lifeExpectancy) years", value: $lifeExpectancy, in: 60...120)
                 .padding()
-                .background(AppColor.secondaryBackground)
+                .background(AppColor.cardBackground)
                 .cornerRadius(10)
+                .padding(.horizontal)
             
             Spacer()
             
@@ -117,6 +118,9 @@ struct OnboardingView: View {
             Spacer()
         }
         .padding()
+        .background(AppColor.cardBackground)
+        .cornerRadius(10)
+        .padding(.horizontal)
     }
     
     var philosophyView: some View {
@@ -234,7 +238,7 @@ struct TimeInfoCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(AppColor.secondaryBackground)
+        .background(AppColor.cardBackground)
         .cornerRadius(12)
     }
 }

@@ -3,14 +3,18 @@ import SwiftUI
 // MARK: - Colors
 struct AppColor {
     static let primaryBackground = Color(UIColor.systemBackground)
-    static let secondaryBackground = Color(UIColor.secondarySystemBackground)
-    static let accent = Color.blue
+    static let cardBackground = Color(UIColor.secondarySystemBackground)
     static let text = Color(UIColor.label)
     static let secondaryText = Color(UIColor.secondaryLabel)
+    static let accent = Color.primary
+    
+    // Explicit Black & White (can be useful for specific elements)
+    static let black = Color.black
+    static let white = Color.white
     
     // Custom shades for contact avatars
     static let avatarColors: [Color] = [
-        .blue, .indigo, .purple, .pink, .red, .orange, .yellow, .green, .mint, .teal
+        .gray, .brown, .indigo, .purple, .pink, .red, .orange, .yellow, .green, .mint, .teal, .cyan
     ]
     
     static func avatarColor(for id: UUID) -> Color {
@@ -25,7 +29,7 @@ struct PrimaryButtonStyle: ButtonStyle {
         configuration.label
             .padding()
             .background(AppColor.accent)
-            .foregroundColor(.white)
+            .foregroundColor(Color(UIColor.systemBackground))
             .cornerRadius(10)
             .scaleEffect(configuration.isPressed ? 0.95 : 1)
     }
@@ -35,7 +39,7 @@ struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .padding()
-            .background(AppColor.secondaryBackground)
+            .background(AppColor.cardBackground)
             .foregroundColor(AppColor.text)
             .cornerRadius(10)
             .overlay(
@@ -48,11 +52,11 @@ struct SecondaryButtonStyle: ButtonStyle {
 
 // MARK: - Avatar View
 struct AvatarView: View {
-    let contact: Contact
+    let person: Person
     let size: CGFloat
     
     var body: some View {
-        if let displayImage = contact.displayImage {
+        if let displayImage = person.displayImage {
             displayImage
                 .resizable()
                 .aspectRatio(contentMode: .fill)
@@ -60,10 +64,10 @@ struct AvatarView: View {
                 .clipShape(Circle())
         } else {
             Circle()
-                .fill(AppColor.avatarColor(for: contact.id))
+                .fill(AppColor.avatarColor(for: person.id))
                 .frame(width: size, height: size)
                 .overlay(
-                    Text(contact.initials)
+                    Text(person.initials)
                         .font(.system(size: size * 0.4, weight: .semibold))
                         .foregroundColor(.white)
                 )
@@ -99,23 +103,8 @@ struct TimeRemainingView: View {
                 .frame(height: 8)
         }
         .padding()
-        .background(AppColor.secondaryBackground)
+        .background(AppColor.cardBackground)
         .cornerRadius(10)
-    }
-}
-
-// MARK: - Tag View
-struct TagView: View {
-    let title: String
-    
-    var body: some View {
-        Text(title)
-            .font(.caption)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(AppColor.secondaryBackground)
-            .foregroundColor(AppColor.text)
-            .cornerRadius(8)
     }
 }
 
@@ -134,7 +123,7 @@ struct LienTextField: View {
             
             TextField(placeholder, text: text)
                 .padding()
-                .background(AppColor.secondaryBackground)
+                .background(AppColor.cardBackground)
                 .cornerRadius(8)
                 .keyboardType(keyboardType)
         }

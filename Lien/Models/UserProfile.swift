@@ -6,7 +6,7 @@ struct UserProfile: Codable {
     var lifeExpectancy: Int = 80
     
     // The user can customize how many times they want to meet with each contact type
-    var meetingGoals: [Contact.RelationshipType: Int] = [
+    var meetingGoals: [Person.RelationshipType: Int] = [
         .family: 52,        // weekly
         .closeFriend: 26,   // biweekly
         .friend: 12,        // monthly
@@ -42,8 +42,8 @@ struct UserProfile: Codable {
         yearsRemaining * 365
     }
     
-    func meetings(for contact: Contact) -> Int {
-        guard let relationship = meetingGoals[contact.relationshipType] else {
+    func meetings(for person: Person) -> Int {
+        guard let relationship = meetingGoals[person.relationshipType] else {
             return 0
         }
         return yearsRemaining * relationship
