@@ -10,8 +10,6 @@ class LienViewModel: ObservableObject {
     @Published var isOnboarded: Bool
     @Published var spontaneousSuggestion: Person? = nil // State for spontaneous suggestion
     
-    @Published var connectionGoals: [ConnectionGoal] = [] // Connection goals
-    
     // Add Calendar Manager
     @Published var calendarManager = CalendarManager()
     
@@ -20,12 +18,75 @@ class LienViewModel: ObservableObject {
     @Published var searchText: String = ""
     
     private let isOnboardedKey = "is-onboarded"
-    private let connectionGoalsKey = "connection-goals" // Key for storing goals
+    
+    // MARK: - Connection Goals Calculation (New)
+    
+    // Status Enum for Connection Goals View
+    enum ConnectionStatus {
+        case overdue(days: Int)
+        case dueIn(days: Int)
+        case noGoalSet // For people with no valid frequency
+        case neverContacted // For people never contacted but with a goal
+    }
+    
+    // Entry Struct for Connection Goals View
+    struct ConnectionGoalEntry: Identifiable {
+        let id: UUID // Use Person's ID
+        let person: Person
+        let status: ConnectionStatus
+    }
+    
+    // Computed property to get sorted connection goal entries
+    var connectionGoalEntries: [ConnectionGoalEntry] {
+        personStore.people.compactMap { person -> ConnectionGoalEntry? in
+            guard let intervalDays = person.meetFrequency.intervalDays, intervalDays > 0 else {
+                // Skip people with no valid goal for now, or assign .noGoalSet
+                 // return ConnectionGoalEntry(id: person.id, person: person, status: .noGoalSet)
+                 return nil // Filter out for now
+            }
+            
+            let status: ConnectionStatus
+            if let daysSince = person.daysSinceLastContact {
+                if daysSince >= intervalDays {
+                    status = .overdue(days: daysSince - intervalDays)
+                } else {
+                    status = .dueIn(days: intervalDays - daysSince)
+                }
+            } else {
+                // Never contacted, but has a goal - due now.
+                status = .neverContacted
+            }
+            
+            return ConnectionGoalEntry(id: person.id, person: person, status: status)
+        }
+        .sorted { entry1, entry2 in
+            // Sort logic: Overdue (most overdue first), then NeverContacted, then DueIn (soonest first)
+            switch (entry1.status, entry2.status) {
+            case (.overdue(let days1), .overdue(let days2)):
+                return days1 > days2 // Most overdue first
+            case (.overdue, _):
+                return true // Overdue always comes before others
+            case (_, .overdue):
+                return false
+            
+            case (.neverContacted, .neverContacted):
+                 return entry1.person.name < entry2.person.name // Sort alphabetically if both never contacted
+             case (.neverContacted, _):
+                 return true // NeverContacted comes after Overdue, before DueIn
+             case (_, .neverContacted):
+                 return false
+            
+            case (.dueIn(let days1), .dueIn(let days2)):
+                return days1 < days2 // Soonest due date first
+            default: // Should cover dueIn vs dueIn case comparison
+                return false
+            }
+        }
+    }
     
     init() {
         self.userProfile = UserProfile.load()
         self.isOnboarded = UserDefaults.standard.bool(forKey: isOnboardedKey)
-        self.connectionGoals = loadConnectionGoals()
         
         // Connect search text changes
         $searchText
@@ -279,7 +340,8 @@ class LienViewModel: ObservableObject {
             }
         }
         
-        // 4. Add suggested interactions (Keep existing logic)
+        // 4. REMOVED suggested interactions (Moved to HomeView)
+        /*
         for person in suggestedPeopleToReachOutTo {
             // Define a date formatter locally or reuse if available globally
             let dateFormatter = DateFormatter()
@@ -298,40 +360,23 @@ class LienViewModel: ObservableObject {
                 action: { /* Action handled by NavigationLink */ }
             ))
         }
+        */
         
-        // 5. Add connection goals (Adapt to ConnectionGoal properties)
-        for goal in connectionGoals {
-            // Calculate the next deadline based on timeframe and start date
-            let today = Calendar.current.startOfDay(for: Date())
-            var nextDeadline = goal.startDate // Start with goal start date
-            
-            let timeframe = goal.timeframe 
-            // Keep adding the timeframe interval until the date is in the future
-            while nextDeadline < today {
-                nextDeadline = timeframe.nextEndDate(from: nextDeadline) 
-                // Safety break in case nextEndDate doesn't advance (shouldn't happen with current enum)
-                if nextDeadline <= today { 
-                   // If timeframe logic somehow doesn't advance, force break
-                   // to prevent potential infinite loop, maybe log an error.
-                   nextDeadline = Date.distantFuture
-                   break 
-                } 
-             }
-             
-            // Use the first related person's ID for the timeline entry, if available
-            let relatedPersonID = goal.relatedPersonIds.first
-            
+        // 5. REMOVED connection goals (Handled in ConnectionGoalsView)
+        /*
+        for goal in connectionGoalEntries {
             entries.append(TimelineEntry(
-                title: goal.title,
-                subtitle: "Goal Deadline", // Generic subtitle
-                date: nextDeadline, // Use calculated next deadline
+                title: goal.person.name,
+                subtitle: "Goal Status: \(goal.status)",
+                date: Date(),
                 iconName: "target",
                 iconColor: .purple,
                 entryType: .connectionGoal,
-                personId: relatedPersonID, // Use the assumed personID property
+                personId: goal.id,
                 action: { /* Action handled by NavigationLink (Placeholder) */ }
             ))
         }
+        */
         
         // Sort all entries by date
         return entries.sorted { $0.date < $1.date }
@@ -419,60 +464,25 @@ class LienViewModel: ObservableObject {
     
     // MARK: - Connection Goals
     
-    func addConnectionGoal(_ goal: ConnectionGoal) {
-        connectionGoals.append(goal)
-        saveConnectionGoals()
-    }
-    
-    func updateConnectionGoal(_ goal: ConnectionGoal) {
-        if let index = connectionGoals.firstIndex(where: { $0.id == goal.id }) {
-            connectionGoals[index] = goal
-            saveConnectionGoals()
-        }
-    }
-    
-    func deleteConnectionGoal(id: UUID) {
-        connectionGoals.removeAll(where: { $0.id == id })
-        saveConnectionGoals()
-    }
-    
     private func updateConnectionGoalsForInteraction(_ interaction: InteractionLog, person: Person) {
-        var goalsUpdated = false
-        
-        for i in 0..<connectionGoals.count {
-            if connectionGoals[i].matchesInteraction(interaction, person: person) &&
-               !connectionGoals[i].completedInteractions.contains(interaction.id) {
-                // Add this interaction to the goal's completed interactions
-                connectionGoals[i].completedInteractions.append(interaction.id)
-                goalsUpdated = true
-            }
-        }
-        
-        if goalsUpdated {
-            saveConnectionGoals()
-        }
+        // Implementation of updateConnectionGoalsForInteraction method
+        // This method should be implemented to update connection goals based on the interaction
     }
     
-    func resetCompletedGoals() {
-        for i in 0..<connectionGoals.count {
-            if connectionGoals[i].progressPercentage >= 1.0 {
-                connectionGoals[i].resetForNewPeriod()
-            }
-        }
-        saveConnectionGoals()
+    // MARK: - Data Persistence (PersonStore and LinkStore handle this now)
+    // ... existing code ...
+
+    // MARK: - Calendar Integration
+    // ... existing code ...
+}
+
+// Remove the duplicate extension for MeetFrequency
+/*
+extension Person.MeetFrequency {
+    // Helper to get approximate meetings per year for calculations
+    func meetingsPerYear() -> Double {
+        guard let days = self.intervalDays, days > 0 else { return 0 }
+        return 365.0 / Double(days)
     }
-    
-    private func saveConnectionGoals() {
-        if let encoded = try? JSONEncoder().encode(connectionGoals) {
-            UserDefaults.standard.set(encoded, forKey: connectionGoalsKey)
-        }
-    }
-    
-    private func loadConnectionGoals() -> [ConnectionGoal] {
-        if let data = UserDefaults.standard.data(forKey: connectionGoalsKey),
-           let decoded = try? JSONDecoder().decode([ConnectionGoal].self, from: data) {
-            return decoded
-        }
-        return []
-    }
-} 
+}
+*/ 

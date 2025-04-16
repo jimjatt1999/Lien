@@ -11,6 +11,11 @@ struct PersonDetailView: View {
     @State private var showingCalendarAlert = false // Add state for alert
     @State private var calendarAlertMessage = ""   // Add state for alert message
     @State private var showingHealthPicker = false // Add state for health picker sheet
+    @State private var showContent = false // State to control transition
+    // State for Time Perspective Info Alert
+    @State private var showingTimeInfoAlert = false
+    @State private var timeInfoAlertTitle = ""
+    @State private var timeInfoAlertMessage = ""
     
     init(viewModel: LienViewModel, person: Person) {
         self.viewModel = viewModel
@@ -19,41 +24,47 @@ struct PersonDetailView: View {
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) { // Spacing between cards
-                // Header - Keep outside card for prominence
-                headerView
-                    .padding(.bottom) // Add padding below header
-                
-                // Sections as Cards
-                timeVisualizationView
-                    .modifier(CardStyle())
-                
-                interactionOptionsView
-                    .modifier(CardStyle())
-                
-                personDetailsView
-                    .modifier(CardStyle())
-                
-                socialMediaLinks
-                    .modifier(CardStyle())
-                
-                if !person.notes.isEmpty {
-                    notesView
-                        .modifier(CardStyle())
-                }
-                
-                lifeEventsSection
-                    .modifier(CardStyle())
-                
-                if !person.interactionHistory.isEmpty {
-                    interactionHistoryView
-                        .modifier(CardStyle())
-                }
-            }
-            .padding() // Padding around the main VStack
+            // Wrap content in an outer VStack for the transition
+            VStack(spacing: 20) { 
+                 if showContent {
+                     // Header (doesn't need separate animation? Keep outside if)
+                     headerView
+                         .padding(.bottom)
+                     
+                     // Animated Cards Section
+                     VStack(spacing: 20) { // Keep original spacing
+                         timeVisualizationView
+                             .modifier(CardStyle())
+                         
+                         interactionOptionsView
+                             .modifier(CardStyle())
+                         
+                         personDetailsView
+                             .modifier(CardStyle())
+                         
+                         socialMediaLinks
+                             .modifier(CardStyle())
+                         
+                         if !person.notes.isEmpty {
+                             notesView
+                                 .modifier(CardStyle())
+                         }
+                         
+                         lifeEventsSection
+                             .modifier(CardStyle())
+                         
+                         if !person.interactionHistory.isEmpty {
+                             interactionHistoryView
+                                 .modifier(CardStyle())
+                         }
+                     }
+                     .transition(.opacity.animation(.easeIn(duration: 0.4))) // Apply transition here
+                 }
+             }
+            .padding() 
         }
-        .background(Color(.systemGroupedBackground).ignoresSafeArea()) // Use grouped background
-        .navigationTitle(person.name) // Display name in title
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .navigationTitle(person.name) 
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -110,6 +121,9 @@ struct PersonDetailView: View {
         .alert(isPresented: $showingCalendarAlert) {
             Alert(title: Text("Calendar Action"), message: Text(calendarAlertMessage), dismissButton: .default(Text("OK")))
         }
+        .alert(isPresented: $showingTimeInfoAlert) {
+            Alert(title: Text(timeInfoAlertTitle), message: Text(timeInfoAlertMessage), dismissButton: .default(Text("Got it")))
+        }
         .onChange(of: viewModel.personStore.people) { _, newPeople in
             // Ensure local state updates if person is modified elsewhere
             if let updatedPerson = newPeople.first(where: { $0.id == person.id }) {
@@ -119,6 +133,9 @@ struct PersonDetailView: View {
             }
             // Handle deletion? (If person no longer exists, view should probably be dismissed)
         }
+        .onAppear { // Trigger animation when ScrollView appears
+             showContent = true
+         }
     }
     
     // MARK: - Component Views
@@ -132,7 +149,6 @@ struct PersonDetailView: View {
                  Circle()
                     .fill(person.relationshipHealth.color)
                     .frame(width: 15, height: 15)
-                    .padding(.bottom, 5)
                  Text(person.relationshipHealth.description)
                      .font(.subheadline)
                      .foregroundColor(person.relationshipHealth.color)
@@ -144,6 +160,8 @@ struct PersonDetailView: View {
             }
             .padding(5)
             .background(Color.gray.opacity(0.001))
+            .scaleEffect(showingHealthPicker ? 0.97 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: showingHealthPicker)
             .onTapGesture {
                  showingHealthPicker = true
              }
@@ -170,30 +188,44 @@ struct PersonDetailView: View {
     }
     
     var timeVisualizationView: some View {
-        VStack(alignment: .leading, spacing: 12) { // Adjusted spacing
+        VStack(alignment: .leading, spacing: 12) {
             Text("Time Perspective")
                 .font(.headline)
             
             HStack(spacing: 15) {
-                TimeRemainingView(
-                    title: "Weeks Left",
-                    count: viewModel.weeksRemaining(with: person),
-                    total: person.age != nil ? (person.lifeExpectancy - (person.age ?? 0)) * 52 : 4160
-                )
-                TimeRemainingView(
-                    title: "Meetings Left", // Renamed for clarity
-                    count: viewModel.meetingsRemaining(with: person),
-                    total: person.age != nil ? (person.lifeExpectancy - (person.age ?? 0)) * Int(person.meetFrequency.meetingsPerYear()) : 960 // Use helper
-                )
+                // Wrap each TimeRemainingView to make it tappable
+                Button {
+                     showTimeInfo(for: .weeks, person: person)
+                 } label: {
+                    TimeRemainingView(
+                        title: "Weeks Left",
+                        count: viewModel.weeksRemaining(with: person),
+                        total: person.age != nil ? (person.lifeExpectancy - (person.age ?? 0)) * 52 : 4160
+                    )
+                }
+                .buttonStyle(PlainButtonStyle()) // Use plain style to avoid button appearance
                 
-                // Add Shared Time view
-                TimeRemainingView(
-                    title: "Shared Weeks",
-                    count: viewModel.sharedWeeksRemaining(with: person),
-                    // Total could be based on initial minimum, or maybe just show count?
-                    // Let's use the initial minimum remaining lifespan * 52 as total
-                    total: min(viewModel.userProfile.yearsRemaining, person.lifeExpectancy - (person.age ?? 0)) * 52
-                )
+                Button {
+                     showTimeInfo(for: .meetings, person: person)
+                 } label: {
+                    TimeRemainingView(
+                        title: "Meetings Left",
+                        count: viewModel.meetingsRemaining(with: person),
+                        total: person.age != nil ? (person.lifeExpectancy - (person.age ?? 0)) * Int(person.meetFrequency.meetingsPerYear()) : 960
+                    )
+                }
+                 .buttonStyle(PlainButtonStyle())
+
+                Button {
+                     showTimeInfo(for: .shared, person: person)
+                 } label: {
+                    TimeRemainingView(
+                        title: "Shared Weeks",
+                        count: viewModel.sharedWeeksRemaining(with: person),
+                        total: min(viewModel.userProfile.yearsRemaining, person.lifeExpectancy - (person.age ?? 0)) * 52
+                    )
+                 }
+                 .buttonStyle(PlainButtonStyle())
             }
         }
     }
@@ -405,7 +437,7 @@ struct PersonDetailView: View {
                         .frame(width: 15, alignment: .center)
                         .padding(.top, 2) // Align icon slightly better
 
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text(log.date, style: .date)
                                 .font(.caption)
@@ -437,7 +469,7 @@ struct PersonDetailView: View {
                 .padding(.vertical, 6)
                 // Add subtle divider between entries?
                 if log.id != person.interactionHistory.prefix(5).last?.id {
-                     Divider().padding(.leading, 27) // Indent divider past icon
+                     Divider().padding(.leading, 36) // Changed from 27 to 36
                 }
             }
         }
@@ -547,6 +579,26 @@ struct PersonDetailView: View {
             showingCalendarAlert = true
         }
     }
+    
+    // MARK: - Helper Functions
+    
+    // Enum to identify which time info was tapped
+    private enum TimeInfoType { case weeks, meetings, shared }
+    
+    private func showTimeInfo(for type: TimeInfoType, person: Person) {
+        switch type {
+        case .weeks:
+            timeInfoAlertTitle = "Weeks Left Calculation"
+            timeInfoAlertMessage = "Based on the minimum of your remaining lifespan (\(viewModel.userProfile.yearsRemaining) years) and \(person.name)'s remaining lifespan (approx. \(max(0, person.lifeExpectancy - (person.age ?? 0))) years), multiplied by 52 weeks/year."
+        case .meetings:
+            timeInfoAlertTitle = "Meetings Left Calculation"
+            timeInfoAlertMessage = "Based on the minimum remaining lifespan (as above) multiplied by the estimated meetings per year for your \(person.meetFrequency.rawValue) connection frequency goal."
+        case .shared:
+            timeInfoAlertTitle = "Shared Weeks Calculation"
+             timeInfoAlertMessage = "Based on the minimum of your remaining lifespan (\(viewModel.userProfile.yearsRemaining) years) and \(person.name)'s remaining lifespan (approx. \(max(0, person.lifeExpectancy - (person.age ?? 0))) years), multiplied by 52 weeks/year. This represents the estimated time you both have left concurrently."
+        }
+        showingTimeInfoAlert = true
+    }
 }
 
 // MARK: - Helpers
@@ -558,6 +610,8 @@ struct CardStyle: ViewModifier {
             .padding()
             .background(AppColor.cardBackground)
             .cornerRadius(12)
+            // Add a subtle shadow
+            .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
     }
 }
 

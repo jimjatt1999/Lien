@@ -47,6 +47,10 @@ struct TimelineView: View {
         ZStack(alignment: .bottomTrailing) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    // Add Perspective Card at the top
+                     PerspectiveView(viewModel: viewModel)
+                         .modifier(CardStyle())
+                    
                     // Timeline sections
                     ForEach(sections, id: \ .self) { section in
                         if let entries = groupedTimelineEntries[section], !entries.isEmpty {
@@ -73,7 +77,8 @@ struct TimelineView: View {
                 addLifeEventFlow = .selectPerson
             }) {
                 Image(systemName: "plus")
-                    .foregroundColor(.white)
+                    // Use a color that adapts to light/dark mode and contrasts with accent
+                    .foregroundColor(Color(UIColor.systemBackground)) 
                     .padding()
                     .background(Circle().fill(AppColor.accent))
                     .shadow(radius: 4)
@@ -99,6 +104,9 @@ struct TimelineView: View {
         }
         .alert(isPresented: $showingCalendarAlert) {
             Alert(title: Text("Calendar Action"), message: Text(calendarAlertMessage), dismissButton: .default(Text("OK")))
+        }
+        .onAppear {
+            viewModel.generateSpontaneousSuggestion()
         }
     }
     

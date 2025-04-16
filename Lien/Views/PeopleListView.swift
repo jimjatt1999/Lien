@@ -58,12 +58,14 @@ struct PeopleListView: View {
                 // Display active tag filter if present - use viewModel.activeTagFilter
                 if let activeTag = viewModel.activeTagFilter {
                     activeFilterView(tag: activeTag)
+                        .padding(.top, 5)
                 }
                 
                 if viewModel.personStore.people.isEmpty && viewModel.searchText.isEmpty && viewModel.activeTagFilter == nil {
                     emptyStateView
                 } else {
-                    peopleListContent // Renamed content view variable
+                    peopleListContent
+                        .padding(.top, 5)
                 }
             }
             .background(AppColor.cardBackground)

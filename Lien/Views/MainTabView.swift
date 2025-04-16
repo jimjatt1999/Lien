@@ -6,7 +6,7 @@ struct MainTabView: View {
     
     // Enum to represent tabs, useful for state management
     enum Tab {
-        case home, timeline, people, network
+        case home, goals, timeline, people, network
     }
     
     var body: some View {
@@ -14,6 +14,12 @@ struct MainTabView: View {
             HomeView(viewModel: viewModel)
                 .tabItem { Label("Home", systemImage: "house.fill") }
                 .tag(Tab.home)
+            
+            // Add the new Connection Goals View
+            // Wrap in NavigationView as it contains its own title etc.
+            ConnectionGoalsView(viewModel: viewModel)
+                .tabItem { Label("Goals", systemImage: "target") } // Using 'target' icon
+                .tag(Tab.goals)
             
             // Wrap TimelineView in its own NavigationView
             NavigationView {
@@ -42,4 +48,5 @@ struct MainTabView: View {
 
 #Preview {
     MainTabView(viewModel: LienViewModel())
+        .environmentObject(AppManager()) // Add EnvironmentObject for preview if needed
 } 

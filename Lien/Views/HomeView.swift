@@ -2,62 +2,114 @@ import SwiftUI
 
 struct HomeView: View {
     @ObservedObject var viewModel: LienViewModel
-    @State private var inspirationalQuote: String = ""
     @State private var showingSettingsSheet = false
-    
-    // Expanded and themed quotes
-    private let quotes = [
-        // On Connection & Relationships
-        "The meeting of two personalities is like the contact of two chemical substances: if there is any reaction, both are transformed. - Carl Jung",
-        "Shared joy is a double joy; shared sorrow is half a sorrow. - Swedish Proverb",
-        "There is no substitute for the comfort supplied by the steadfast truths of life shared with a good friend. - Anonymous",
-        "In everyone's life, at some time, our inner fire goes out. It is then burst into flame by an encounter with another human being. - Albert Schweitzer",
-        "We are like islands in the sea, separate on the surface but connected in the deep. - William James",
-        "Friendship is born at that moment when one person says to another, 'What! You too? I thought I was the only one.' - C.S. Lewis",
-        "The best way to keep your friends is not to give them away. - Wilson Mizner",
+    @State private var currentConnectionPrompt: String = "" // State for connection prompt
+
+    // --- Connection Prompts --- 
+    private let connectionPrompts = [
+        "Who comes to mind right now? A quick hello can brighten their day.",
+        "Even a short message shows you care.",
+        "Reaching out strengthens the threads that connect us.",
+        "What's one small way you can connect with someone today?",
+        "A simple check-in can mean a lot.",
+        "Who haven't you spoken to in a while?",
+        "Thinking of someone? Let them know!",
+        "Small connections build strong bonds.",
         
-        // On Time & Presence
-        "Time is the coin of your life. It is the only coin you have, and only you can determine how it will be spent. - Carl Sandburg",
-        "The present moment is filled with joy and happiness. If you are attentive, you will see it. - Thich Nhat Hanh",
-        "Realize deeply that the present moment is all you have. Make the NOW the primary focus of your life. - Eckhart Tolle",
-        "Yesterday is history, tomorrow is a mystery, today is a gift of God, which is why we call it the present. - Bill Keane",
-        "Do not dwell in the past, do not dream of the future, concentrate the mind on the present moment. - Buddha",
-        "How we spend our days is, of course, how we spend our lives. - Annie Dillard",
+        // New Prompts
+        "Ask a friend about their day. Really listen.",
+        "Share a funny memory with a family member.",
+        "Offer a word of encouragement to a colleague.",
+        "Who supported you recently? Thank them.",
+        "A simple \'thinking of you\' goes a long way.",
+        "Plan a quick call, even just for 5 minutes.",
+        "Send a photo that reminds you of someone.",
+        "Is there someone you admire? Tell them why.",
+        "Share an interesting article or song.",
+        "Celebrate a small win with someone.",
+        "Ask for advice, even if you don't strictly need it.",
+        "Offer help, even if it's just listening.",
+        "Recall an inside joke and share it.",
+        "Compliment someone sincerely.",
+        "Who makes you laugh? Reach out to them.",
+        "Share something you learned recently.",
+        "Just say hi. It's often enough.",
+        "Consistency matters more than grand gestures.",
+        "Be the friend you wish you had.",
+        "Make time. Don't just find time.",
+        "Vulnerability builds deeper connections.",
+        "Ask open-ended questions.",
+        "Put your phone away during conversations.",
+        "Remember small details about people.",
+        "Show up for the important moments.",
+        "Forgiveness frees up energy for connection.",
+        "Who could use your support right now?",
+        "Don't assume, ask.",
+        "Be genuinely curious about others.",
+        "Every interaction is an opportunity.",
         
-        // On Philosophy & Life
-        "Waste no more time arguing about what a good man should be. Be one. - Marcus Aurelius",
-        "The unexamined life is not worth living. - Socrates",
-        "It is not that we have a short time to live, but that we waste a lot of it. - Seneca",
-        "He who lives in harmony with himself lives in harmony with the universe. - Marcus Aurelius",
-        "The only true wisdom is in knowing you know nothing. - Socrates",
-        "Happiness is not something ready made. It comes from your own actions. - Dalai Lama",
-        "Be yourself; everyone else is already taken. - Oscar Wilde"
+        // --- Batch 3: Deep, Funny, Fun --- 
+        "Who challenged your perspective recently? Engage again.",
+        "Ask someone: \'What made you smile today?\'",
+        "Send a perfectly timed GIF or meme.",
+        "Admit you were wrong about something trivial. It builds bridges.",
+        "Who inspires you creatively? Let them know.",
+        "\'Remember that time when...\' is a powerful starter.",
+        "Share a ridiculous pun. Apologize later (or don\'t).",
+        "Ask about someone\'s passion project.",
+        "What\'s the weirdest dream you had recently? Share (if appropriate!).",
+        "Offer to bring coffee or tea.",
+        "Check in on someone who might be going through a tough time.",
+        "Plan a low-pressure hangout, even virtual.",
+        "Send a voice note instead of a text.",
+        "Ask: \'What are you excited about this week?\'",
+        "Share a picture of your pet doing something goofy.",
+        "Who haven\'t you *physically* seen in a while? Make a plan.",
+        "Recommend a book/movie/podcast you genuinely enjoyed.",
+        "Confess a minor, funny mishap from your day.",
+        "Ask someone about their favorite childhood memory.",
+        "Debate something silly: pineapple on pizza? Best chip flavor?",
+        "Express gratitude for a specific quality you admire in someone.",
+        "Who pushes you to be better? Acknowledge it.",
+        "\'Saw this and thought of you\' - even if it\'s slightly random.",
+        "Initiate the conversation. Don\'t always wait.",
+        "Ask for a recommendation (restaurant, music, etc.).",
+        "Share a quick win from your day.",
+        "Send a postcard (yes, really!).",
+        "Challenge a friend to a silly online game.",
+        "Talk about future hopes, big or small.",
+        "Sometimes, just being present together is enough.",
+        "What\'s one thing you appreciate about this connection?"
     ]
-    
+    // --- End Connection Prompts ---
+
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Header Section (Greeting + Date Grid) - No card background for header
+                    // 1. Header Section
                     headerSection
                     
-                    // Spontaneous Suggestion (Subtle)
+                    // 2. Spontaneous Suggestion
                     if let suggestedPerson = viewModel.spontaneousSuggestion {
                         spontaneousSuggestionView(person: suggestedPerson)
-                            .padding(.top, 5) // Add some space above
+                            .padding(.top, 5)
                     }
+
+                    // 3. Connection Prompt (Moved up, outside card)
+                    connectionPromptView
+                        .padding(.horizontal) // Add horizontal padding
+                        // Not in a card anymore
+
+                    // --- Section Order Adjusted --- 
+
+                    // 4. Merged Life Journey & Perspective Card
+                    lifeProgressView // Now contains perspective items
+                        .padding()
+                        .background(AppColor.cardBackground)
+                        .cornerRadius(12)
                     
-                    // Sections as Cards
-                    lifeProgressView
-                        .padding()
-                        .background(AppColor.cardBackground)
-                        .cornerRadius(12)
-
-                    quoteView
-                        .padding()
-                        .background(AppColor.cardBackground)
-                        .cornerRadius(12)
-
+                    // 5. Reach Out Suggestions Card 
                     if !viewModel.suggestedPeopleToReachOutTo.isEmpty {
                         reachOutSuggestionsView
                             .padding()
@@ -65,41 +117,35 @@ struct HomeView: View {
                             .cornerRadius(12)
                     }
 
+                    // 6. Upcoming Events Card (if any)
                     if !viewModel.upcomingEvents.isEmpty {
                         upcomingEventsView
                             .padding()
                             .background(AppColor.cardBackground)
                             .cornerRadius(12)
                     }
-
-                    lifeInPerspectiveView
-                        .padding()
-                        .background(AppColor.cardBackground)
-                        .cornerRadius(12)
                 }
-                .padding() // Add padding around the main VStack
-                .toolbar {
+                .padding() 
+                .toolbar { // Keep existing toolbar
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Button(action: {
-                            showingSettingsSheet = true
-                        }) {
-                            Image(systemName: "person.circle")
-                                .imageScale(.large)
+                        Button(action: { showingSettingsSheet = true }) {
+                            Image(systemName: "person.circle").imageScale(.large)
                         }
                     }
                 }
-                .sheet(isPresented: $showingSettingsSheet) {
+                .sheet(isPresented: $showingSettingsSheet) { // Keep existing sheet
                     NavigationView {
                         SettingsView(viewModel: viewModel)
                             .navigationTitle("Settings")
                     }
                 }
             }
-            .background(Color(.systemGroupedBackground).ignoresSafeArea()) // Use standard grouped background
-            .navigationBarTitleDisplayMode(.inline) // Use inline title to give more space to header
-            .onAppear {
-                inspirationalQuote = quotes.randomElement() ?? quotes[0]
-                viewModel.generateSpontaneousSuggestion() // Generate suggestion on appear
+            .background(Color(.systemGroupedBackground).ignoresSafeArea()) 
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear { 
+                viewModel.generateSpontaneousSuggestion()
+                // Select initial connection prompt
+                currentConnectionPrompt = connectionPrompts.randomElement() ?? connectionPrompts[0]
             }
         }
     }
@@ -171,70 +217,89 @@ struct HomeView: View {
     // MARK: - Component Views (Cards)
     
     var lifeProgressView: some View {
-        VStack(alignment: .leading, spacing: 8) { // Reduced spacing inside card
-            Text("Your Life Journey")
-                .font(.headline)
-                .foregroundColor(AppColor.text)
-
-            HStack {
-                Text("Age \(viewModel.userProfile.age)") // Combined text
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+        VStack(alignment: .leading, spacing: 15) { // Increased spacing between sections
+            // --- Original Life Journey --- 
+            VStack(alignment: .leading, spacing: 8) { 
+                Text("Your Life Journey")
+                    .font(.headline)
                     .foregroundColor(AppColor.text)
-                
-                Spacer()
-                
-                Text("\(viewModel.userProfile.yearsRemaining) years remaining")
-                    .font(.subheadline)
-                    .foregroundColor(AppColor.secondaryText)
-            }
-            
-            ProgressView(value: Double(viewModel.userProfile.age), total: Double(viewModel.userProfile.lifeExpectancy))
-                .tint(AppColor.accent)
-                .padding(.top, 4) // Add small padding above progress bar
-        }
-        // Remove internal padding/background/cornerRadius, handled by the caller
-    }
-    
-    var quoteView: some View {
-        VStack(alignment: .center, spacing: 8) {
-            let quoteParts = inspirationalQuote.components(separatedBy: " - ")
-            let quoteText = quoteParts.first ?? inspirationalQuote
-            let authorText = quoteParts.count > 1 ? quoteParts.last : nil
-            
-            Text("\"\(quoteText)\"")
-                .font(.system(.body, design: .serif)) // Slightly smaller font
-                .italic()
-                .multilineTextAlignment(.center)
-                .foregroundColor(AppColor.text)
-                .padding(.horizontal)
-            
-            if let author = authorText, !author.isEmpty {
-                Text("- \(author)") // Corrected interpolation
-                    .font(.system(.caption, design: .serif))
-                    .foregroundColor(AppColor.secondaryText)
+
+                HStack {
+                    Text("Age \(viewModel.userProfile.age)")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(AppColor.text)
+                    Spacer()
+                    Text("\(viewModel.userProfile.yearsRemaining) years remaining")
+                        .font(.subheadline)
+                        .foregroundColor(AppColor.secondaryText)
+                }
+                ProgressView(value: Double(viewModel.userProfile.age), total: Double(viewModel.userProfile.lifeExpectancy))
+                    .tint(AppColor.accent)
                     .padding(.top, 4)
             }
+            // --- End Original Life Journey ---
+
+            Divider().padding(.vertical, 5) // Add divider
+
+            // --- Merged Perspective Items --- 
+            VStack(alignment: .leading, spacing: 8) { // Reduced spacing
+                 Text("Approximate experiences remaining:")
+                     .font(.subheadline)
+                     .foregroundColor(AppColor.secondaryText)
+                
+                 VStack(spacing: 8) { // Tighter spacing for items
+                     perspectiveItemMerged(icon: "calendar", count: viewModel.userProfile.yearsRemaining * 52, unit: "weekends")
+                     perspectiveItemMerged(icon: "moon.fill", count: viewModel.userProfile.yearsRemaining * 12, unit: "full moons")
+                     perspectiveItemMerged(icon: "figure.stand.line.dotted.figure.stand", count: viewModel.userProfile.yearsRemaining * 4, unit: "seasons")
+                 }
+                 // .padding(.top, 4) // Removed extra top padding
+            }
+            // --- End Merged Perspective --- 
+            
+             // Centered reminder text from perspective view
+             Text("Make each moment count.")
+                 .font(.footnote)
+                 .italic()
+                 .foregroundColor(AppColor.accent)
+                 .frame(maxWidth: .infinity, alignment: .center)
+                 .padding(.top, 8)
         }
-        .frame(maxWidth: .infinity) // Ensure VStack fills the width
-        // Remove internal padding/background/cornerRadius, handled by the caller
+    }
+    
+    // Helper for merged perspective items (kept local to the merged view)
+    private func perspectiveItemMerged(icon: String, count: Int, unit: String) -> some View {
+         HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.callout) // Slightly smaller icon than before
+                .foregroundColor(AppColor.accent)
+                .frame(width: 20) // Adjusted frame
+            
+            Text("\(count) \(unit)")
+                .font(.caption) // Smaller font
+                .foregroundColor(AppColor.text)
+            
+            Spacer()
+        }
+        .padding(.vertical, 0) // Minimal vertical padding
     }
     
     var reachOutSuggestionsView: some View {
-        VStack(alignment: .leading, spacing: 12) { // Adjusted spacing
-            Text("Time to Connect") // Simplified title
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Time to Connect")
                 .font(.headline)
                 .foregroundColor(AppColor.text)
-            
-            // Display first few suggestions
-            ForEach(viewModel.suggestedPeopleToReachOutTo.prefix(3)) { person in
+
+            // Display suggestions
+            let suggestionsToShow = viewModel.suggestedPeopleToReachOutTo // Show all suggestions
+            ForEach(suggestionsToShow) { person in
                 NavigationLink(destination: PersonDetailView(viewModel: viewModel, person: person)) {
-                    // Consider using a slightly richer row here if needed
                     HStack {
                         AvatarView(person: person, size: 40)
                         VStack(alignment: .leading) {
                             Text(person.name).font(.subheadline).fontWeight(.medium)
-                            Text(person.relationshipStatus.description) // Use description property
+                            // Show relationship status for context
+                            Text(person.relationshipStatus.description)
                                 .font(.caption)
                                 .foregroundColor(person.relationshipStatus.color)
                         }
@@ -243,28 +308,42 @@ struct HomeView: View {
                              .foregroundColor(.secondary.opacity(0.5))
                     }
                 }
-                .buttonStyle(PlainButtonStyle()) // Use PlainButtonStyle for links in List/ForEach
-                 if person != viewModel.suggestedPeopleToReachOutTo.prefix(3).last {
-                     Divider().padding(.leading, 52) // Add divider between items
+                .buttonStyle(PlainButtonStyle())
+                
+                if person != suggestionsToShow.last {
+                     Divider().padding(.leading, 52)
                  }
             }
-            
-            // Link to see all
-            if viewModel.suggestedPeopleToReachOutTo.count > 3 {
-                NavigationLink(destination: PeopleListView(viewModel: viewModel, initialFilter: PeopleListFilter.suggested)) { // Pass fully qualified filter
-                    HStack {
-                        Spacer()
-                        Text("See all \(viewModel.suggestedPeopleToReachOutTo.count)")
-                            .font(.subheadline)
-                        Image(systemName: "arrow.right")
-                            .font(.subheadline)
-                    }
-                    .foregroundColor(AppColor.accent)
-                }
-                .padding(.top, 8)
-            }
+
+            // Link to Connection Goals view if there are suggestions
+            if !suggestionsToShow.isEmpty {
+                 NavigationLink(destination: ConnectionGoalsView(viewModel: viewModel)) {
+                     HStack {
+                         Spacer()
+                         Text("View All Goals")
+                             .font(.subheadline)
+                         Image(systemName: "arrow.right")
+                             .font(.subheadline)
+                     }
+                     .foregroundColor(AppColor.accent)
+                 }
+                 .padding(.top, 8)
+             }
         }
-        // Remove internal padding/background/cornerRadius, handled by the caller
+    }
+    
+    var connectionPromptView: some View {
+        Text(currentConnectionPrompt)
+            .font(.callout) // Increased font size from .caption
+            .italic()
+            .foregroundColor(AppColor.secondaryText)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, 8) // Increased vertical padding slightly
+            .contentShape(Rectangle()) // Make it tappable
+            .onTapGesture {
+                 currentConnectionPrompt = connectionPrompts.randomElement() ?? connectionPrompts[0]
+            }
     }
     
     var upcomingEventsView: some View {
@@ -305,35 +384,6 @@ struct HomeView: View {
              // Optional: Link to see all events if needed
         }
          // Remove internal padding/background/cornerRadius, handled by the caller
-    }
-    
-    var lifeInPerspectiveView: some View {
-        VStack(alignment: .leading, spacing: 12) { // Adjusted spacing
-            Text("Life in Perspective")
-                .font(.headline)
-                .foregroundColor(AppColor.text)
-            
-            // Simplified text
-            Text("Approximate experiences remaining:")
-                .font(.subheadline)
-                .foregroundColor(AppColor.secondaryText)
-            
-            VStack(spacing: 10) { // Tighter spacing for items
-                perspectiveItem(icon: "calendar", count: viewModel.userProfile.yearsRemaining * 52, unit: "weekends")
-                perspectiveItem(icon: "moon.fill", count: viewModel.userProfile.yearsRemaining * 12, unit: "full moons")
-                perspectiveItem(icon: "figure.stand.line.dotted.figure.stand", count: viewModel.userProfile.yearsRemaining * 4, unit: "seasons")
-            }
-            .padding(.top, 4)
-
-            // Centered quote/reminder
-            Text("Make each moment count.")
-                .font(.footnote) // Smaller font
-                .italic()
-                .foregroundColor(AppColor.accent)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 8)
-        }
-        // Remove internal padding/background/cornerRadius, handled by the caller
     }
     
     // MARK: - Date Grid View Component (Compact)
@@ -391,27 +441,9 @@ struct HomeView: View {
             return formatter
         }
     }
-    
-    // MARK: - Helper Views
-    
-    func perspectiveItem(icon: String, count: Int, unit: String) -> some View {
-         HStack(spacing: 10) { // Reduced spacing
-            Image(systemName: icon)
-                .font(.body) // Smaller icon
-                .foregroundColor(AppColor.accent)
-                .frame(width: 25) // Adjusted frame
-            
-            // Combine count and unit
-            Text("\(count) \(unit)") // Corrected interpolation
-                .font(.callout) // Smaller font
-                .foregroundColor(AppColor.text)
-            
-            Spacer()
-        }
-        .padding(.vertical, 1) // Reduced vertical padding
-    }
 }
 
 #Preview {
     HomeView(viewModel: LienViewModel())
+        .environmentObject(AppManager()) // Ensure AppManager is available for preview
 } 

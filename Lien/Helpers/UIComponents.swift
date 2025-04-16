@@ -12,14 +12,15 @@ struct AppColor {
     static let black = Color.black
     static let white = Color.white
     
-    // Custom shades for contact avatars
-    static let avatarColors: [Color] = [
+    // Renamed from avatarColors to backgroundPalette for consistency
+    static let backgroundPalette: [Color] = [
         .gray, .brown, .indigo, .purple, .pink, .red, .orange, .yellow, .green, .mint, .teal, .cyan
     ]
     
-    static func avatarColor(for id: UUID) -> Color {
-        let colorIndex = abs(id.hashValue) % avatarColors.count
-        return avatarColors[colorIndex]
+    // Renamed from avatarColor to initialsBackgroundColor
+    static func initialsBackgroundColor(for id: UUID) -> Color {
+        let colorIndex = abs(id.hashValue) % backgroundPalette.count // Use renamed palette
+        return backgroundPalette[colorIndex] // Use renamed palette
     }
 }
 
@@ -64,7 +65,8 @@ struct AvatarView: View {
                 .clipShape(Circle())
         } else {
             Circle()
-                .fill(AppColor.avatarColor(for: person.id))
+                // Use the renamed function
+                .fill(AppColor.initialsBackgroundColor(for: person.id)) 
                 .frame(width: size, height: size)
                 .overlay(
                     Text(person.initials)

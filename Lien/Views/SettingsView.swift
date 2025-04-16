@@ -4,6 +4,7 @@ import PhotosUI
 struct SettingsView: View {
     @ObservedObject var viewModel: LienViewModel
     @Environment(\.presentationMode) var presentationMode
+    @EnvironmentObject var appManager: AppManager
     
     @State private var name: String
     @State private var dateOfBirth: Date
@@ -38,6 +39,17 @@ struct SettingsView: View {
                     Stepper("Life Expectancy: \(lifeExpectancy) years", value: $lifeExpectancy, in: 60...120)
                 }
                 
+                // --- Corrected Font Settings Section ---
+                Section(header: Text("Appearance")) {
+                    Picker("Font Design", selection: $appManager.appFontDesign) {
+                        ForEach(AppFontDesign.allCases) { design in
+                            Text(design.rawValue.capitalized).tag(design)
+                        }
+                    }
+                    // Add more appearance settings here if needed (e.g., font size, width)
+                }
+                
+                // --- Default Meeting Goals Section ---
                 Section(header: Text("Default Meeting Goals")) {
                     ForEach(Person.RelationshipType.allCases, id: \.self) { type in
                         meetingGoalRow(for: type)
@@ -62,7 +74,7 @@ struct SettingsView: View {
                     }
                     
                     // Link to support/feedback
-                    if let url = URL(string: "https://www.example.com/support") { // Replace with actual URL
+                    if let url = URL(string: "https://www.zecrostudio.dev/lien/support") { // Replace with actual URL
                          Link(destination: url) {
                              Text("Support & Feedback")
                          }
@@ -91,9 +103,11 @@ struct SettingsView: View {
                     if let data = try? await newItem?.loadTransferable(type: Data.self) {
                         selectedImageData = data
                     }
-                }
-            }
+                 }
+             }
         }
+        // Apply font design from AppManager to the entire SettingsView
+        .fontDesign(appManager.appFontDesign.swiftUIFontDesign)
     }
     
     // MARK: - Helper Views
@@ -102,7 +116,8 @@ struct SettingsView: View {
         // Use binding to local state
         let binding = Binding<Int>(
             get: {
-                meetingGoals[type] ?? Person.defaultMeetingGoal(for: type) // Provide default
+                // Use the static function from the Person extension for default
+                meetingGoals[type] ?? Person.defaultMeetingGoal(for: type)
             },
             set: { newValue in
                  meetingGoals[type] = newValue
@@ -215,5 +230,7 @@ extension Person {
 }
 
 #Preview {
+    // Provide AppManager for the preview
     SettingsView(viewModel: LienViewModel())
+        .environmentObject(AppManager())
 } 
