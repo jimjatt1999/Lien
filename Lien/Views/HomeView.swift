@@ -41,6 +41,12 @@ struct HomeView: View {
                     // Header Section (Greeting + Date Grid) - No card background for header
                     headerSection
                     
+                    // Spontaneous Suggestion (Subtle)
+                    if let suggestedPerson = viewModel.spontaneousSuggestion {
+                        spontaneousSuggestionView(person: suggestedPerson)
+                            .padding(.top, 5) // Add some space above
+                    }
+                    
                     // Sections as Cards
                     lifeProgressView
                         .padding()
@@ -93,6 +99,7 @@ struct HomeView: View {
             .navigationBarTitleDisplayMode(.inline) // Use inline title to give more space to header
             .onAppear {
                 inspirationalQuote = quotes.randomElement() ?? quotes[0]
+                viewModel.generateSpontaneousSuggestion() // Generate suggestion on appear
             }
         }
     }
@@ -125,6 +132,39 @@ struct HomeView: View {
             return baseGreeting.replacingOccurrences(of: ".", with: ", \(userName).")
         } else {
             return baseGreeting
+        }
+    }
+    
+    // MARK: - Spontaneous Suggestion View (Subtle)
+    
+    @ViewBuilder
+    private func spontaneousSuggestionView(person: Person) -> some View {
+        HStack {
+            Text("Thinking of...")
+                .font(.callout)
+                .foregroundColor(.secondary)
+            
+            AvatarView(person: person, size: 25) // Small avatar
+            
+            Text(person.name)
+                .font(.callout)
+                .fontWeight(.medium)
+            
+            Spacer()
+            
+            // Optional: Button to refresh?
+            /*
+            Button { viewModel.generateSpontaneousSuggestion() } label: {
+                Image(systemName: "arrow.clockwise.circle")
+            }
+            .buttonStyle(BorderlessButtonStyle())
+            */
+        }
+        .padding(.horizontal) // Only horizontal padding to keep it less card-like
+        .contentShape(Rectangle()) // Make HStack tappable
+        .onTapGesture {
+            // Navigate to person? For now, maybe just refresh
+             viewModel.generateSpontaneousSuggestion()
         }
     }
     

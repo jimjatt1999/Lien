@@ -39,6 +39,10 @@ struct Person: Identifiable, Codable, Equatable {
     var interactionHistory: [InteractionLog] = []
     var isCorePerson: Bool = false // Added for Core People feature
     
+    // New properties for enhanced features
+    var lifeEvents: [LifeEvent] = []
+    var interactionMoods: [UUID: Mood] = [:] // Maps interaction IDs to moods
+    
     // Stats (Can be derived from history later if needed)
     var meetingCount: Int = 0
     var callCount: Int = 0

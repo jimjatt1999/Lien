@@ -82,29 +82,27 @@ struct TimeRemainingView: View {
     let total: Int
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 5) {
             Text(title)
                 .font(.caption)
                 .foregroundColor(AppColor.secondaryText)
             
-            HStack {
+            HStack(alignment: .lastTextBaseline, spacing: 4) {
                 Text("\(count)")
-                    .font(.title)
-                    .fontWeight(.bold)
+                    .font(.headline)
+                    .fontWeight(.semibold)
                     .foregroundColor(AppColor.text)
                 
                 Text("of \(total)")
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundColor(AppColor.secondaryText)
             }
             
             ProgressView(value: Double(count), total: Double(total))
                 .tint(AppColor.accent)
-                .frame(height: 8)
+                .frame(height: 6)
+                .padding(.top, 2)
         }
-        .padding()
-        .background(AppColor.cardBackground)
-        .cornerRadius(10)
     }
 }
 

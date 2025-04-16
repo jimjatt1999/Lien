@@ -13,16 +13,10 @@ struct PersonEditView: View {
     @State private var selectedImage: UIImage? = nil
     
     @State private var tagInput: String = ""
-    @State private var socialMediaType: String = "Instagram"
-    @State private var socialMediaUrl: String = ""
+    @State private var socialMediaType = "Instagram" // Default selection
+    @State private var socialMediaUrl = ""
+    @State private var customPlatformName = "" // New state for custom platform name
     @State private var customSocialLinks: [(key: String, value: String)] = []
-    
-    // Linking state
-    @State private var showingLinkSheet = false
-    @State private var personToLink: Person? = nil
-    @State private var showingLabelAlert = false
-    @State private var linkLabel: String = ""
-    @State private var pendingLinksToAdd: [(personToLink: Person, label: String)] = []
     
     let socialMediaTypes = ["Instagram", "WhatsApp", "Facebook", "Twitter", "LinkedIn", "Custom"]
     
@@ -58,7 +52,6 @@ struct PersonEditView: View {
                 contactInfoSection
                 relationshipSection
                 tagsSection
-                linkedPeopleSection
                 socialMediaSection
                 notesSection
             }
@@ -79,25 +72,6 @@ struct PersonEditView: View {
             .sheet(isPresented: $showingImagePicker) {
                 ImagePicker(selectedImage: $selectedImage)
             }
-            .sheet(isPresented: $showingLinkSheet) {
-                SinglePersonSelectionSheet(viewModel: viewModel, currentPersonId: person.id) { selectedPerson in
-                    personToLink = selectedPerson
-                    linkLabel = ""
-                    showingLabelAlert = true
-                }
-            }
-            .alert("Relationship Label", isPresented: $showingLabelAlert, actions: {
-                TextField("Label (e.g., Family, Colleague)", text: $linkLabel)
-                Button("Save Link") {
-                    if let person2 = personToLink, !linkLabel.isEmpty {
-                        pendingLinksToAdd.append((personToLink: person2, label: linkLabel))
-                    }
-                    personToLink = nil
-                }
-                Button("Cancel", role: .cancel) { personToLink = nil }
-            }, message: {
-                Text("How is \(person.name) connected to \(personToLink?.name ?? "...")?")
-            })
             // --- End Sheets and Alerts --- 
         }
         .onChange(of: selectedImage) { _, newImage in
@@ -165,88 +139,64 @@ struct PersonEditView: View {
         }
     }
     
-    private var linkedPeopleSection: some View {
-        Section(header: Text("Linked People")) {
-            let existingLinks = viewModel.getLinks(for: person)
-            if !existingLinks.isEmpty {
-                ForEach(existingLinks) { link in
-                    linkRow(link: link)
-                }
-                .onDelete { indexSet in // Alternative way to remove
-                     let linksToDelete = indexSet.map { existingLinks[$0] }
-                     for link in linksToDelete {
-                         viewModel.removeLink(link)
-                     }
-                 }
-            } else {
-                Text("No links added yet.").foregroundColor(.secondary)
-            }
-            Button(action: { showingLinkSheet = true }) {
-                Label("Link to Another Person", systemImage: "link.badge.plus")
-            }
-        }
-    }
-    
-    // Helper view for link row within linkedPeopleSection
-    @ViewBuilder
-    private func linkRow(link: RelationshipLink) -> some View {
-        // Determine the *other* person in the link
-        let otherPersonId = (link.person1ID == person.id) ? link.person2ID : link.person1ID
-        if let otherPerson = viewModel.personStore.people.first(where: { $0.id == otherPersonId }) {
-            HStack {
-                Text("\(otherPerson.name) - \(link.label)")
-                Spacer()
-                Button(role: .destructive) {
-                    viewModel.removeLink(link)
-                } label: {
-                    Image(systemName: "trash").foregroundColor(.red)
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-        } else {
-            HStack { Text("Unknown Link").foregroundColor(.secondary) }
-        }
-    }
-    
     private var socialMediaSection: some View {
         Section(header: Text("Social Media Links")) {
-            HStack {
+            // Combined Add Section
+            VStack(alignment: .leading, spacing: 8) {
                 Picker("Platform", selection: $socialMediaType) {
                     ForEach(socialMediaTypes, id: \.self) { type in
                         Text(type).tag(type)
                     }
                 }
-                .pickerStyle(MenuPickerStyle()).frame(width: 120)
+                .pickerStyle(MenuPickerStyle())
+                
+                if socialMediaType == "Custom" {
+                    TextField("Platform Name", text: $customPlatformName) // Use dedicated state
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .padding(.bottom, 4)
+                }
+                
+                HStack {
+                    TextField("URL or Username", text: $socialMediaUrl) // Clarified placeholder
+                        .keyboardType(.URL)
+                        .autocapitalization(.none)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    
+                    Button(action: addSocialMedia) { 
+                        Image(systemName: "plus.circle.fill")
+                            .imageScale(.large)
+                    }
+                    .disabled(socialMediaUrl.isEmpty || (socialMediaType == "Custom" && customPlatformName.isEmpty))
+                }
             }
-            if socialMediaType == "Custom" {
-                TextField("Platform Name", text: $socialMediaType).autocapitalization(.words)
-            }
-            HStack {
-                TextField("URL", text: $socialMediaUrl).keyboardType(.URL).autocapitalization(.none)
-                Button(action: addSocialMedia) { Image(systemName: "plus.circle.fill") }
-            }
-            // Standard links
+            .padding(.vertical, 5)
+            
+            // Display existing links
             Group {
                 if let instagram = person.instagram {
-                    socialMediaLinkRow(type: "Instagram", url: instagram)
+                    socialMediaLinkRow(type: "Instagram", platformIcon: "camera.fill", url: instagram)
                 }
                 if let whatsapp = person.whatsapp {
-                    socialMediaLinkRow(type: "WhatsApp", url: whatsapp)
+                    // Use phone number for WhatsApp URL if available, otherwise show stored string
+                    let displayUrl = person.phone ?? whatsapp
+                    socialMediaLinkRow(type: "WhatsApp", platformIcon: "phone.bubble.left.fill", url: displayUrl, isPhoneNumber: person.phone != nil)
                 }
                 if let facebook = person.facebook {
-                    socialMediaLinkRow(type: "Facebook", url: facebook)
+                    socialMediaLinkRow(type: "Facebook", platformIcon: "person.2.fill", url: facebook)
                 }
                 if let twitter = person.twitter {
-                    socialMediaLinkRow(type: "Twitter", url: twitter)
+                    socialMediaLinkRow(type: "Twitter", platformIcon: "at", url: twitter) // Use 'at' symbol for Twitter icon
                 }
                 if let linkedin = person.linkedin {
-                    socialMediaLinkRow(type: "LinkedIn", url: linkedin)
+                    socialMediaLinkRow(type: "LinkedIn", platformIcon: "briefcase.fill", url: linkedin)
                 }
             }
+            
             // Custom links
             ForEach(customSocialLinks.indices, id: \.self) { index in
                 socialMediaLinkRow(
                     type: customSocialLinks[index].key,
+                    platformIcon: "link", // Generic link icon for custom
                     url: customSocialLinks[index].value,
                     isCustom: true,
                     index: index
@@ -292,14 +242,22 @@ struct PersonEditView: View {
         .padding(.vertical, 0) // Reduced/Removed vertical padding
     }
     
-    func socialMediaLinkRow(type: String, url: String, isCustom: Bool = false, index: Int? = nil) -> some View {
+    func socialMediaLinkRow(type: String, platformIcon: String, url: String, isCustom: Bool = false, isPhoneNumber: Bool = false, index: Int? = nil) -> some View {
         HStack {
+            Image(systemName: platformIcon)
+                .frame(width: 20, alignment: .center) // Ensure icon width
+                .foregroundColor(AppColor.accent)
+            
             Text(type)
             Spacer()
             Text(url)
                 .foregroundColor(.gray)
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .onTapGesture { // Allow tapping URL to open
+                    let urlToOpen = (isPhoneNumber ? "tel:\(url)" : url)
+                    viewModel.openSocialMedia(urlString: urlToOpen)
+                }
             
             Button(action: {
                 removeSocialMedia(type: type, index: index)
@@ -358,7 +316,7 @@ struct PersonEditView: View {
     
     private func savePerson() {
         print("Save Person: Starting. Person ID: \(person.id), Name: \(person.name)")
-        print("Save Person: Pending links before save: \(pendingLinksToAdd.count)")
+        print("Save Person: Pending links before save: \(customSocialLinks.count)")
 
         person.otherSocialLinks = Dictionary(uniqueKeysWithValues: customSocialLinks)
         
@@ -374,15 +332,6 @@ struct PersonEditView: View {
         let savedPersonID = viewModel.personStore.people.first { $0.id == person.id }?.id ?? UUID.init(uuidString: "00000000-0000-0000-0000-000000000000")!
         print("Save Person: Person ID after save/update in store: \(savedPersonID)")
 
-        print("Save Person: Adding \(pendingLinksToAdd.count) pending links...")
-        for pending in pendingLinksToAdd {
-            print("Save Person: Adding link between \(person.id) (\(person.name)) and \(pending.personToLink.id) (\(pending.personToLink.name)) with label '\(pending.label)'")
-            viewModel.addLink(person1: person, person2: pending.personToLink, label: pending.label)
-        }
-        print("Save Person: Finished adding links. Link store count: \(viewModel.linkStore.links.count)")
-        
-        pendingLinksToAdd = []
-        
         print("Save Person: Dismissing view.")
         isPresented = false
     }
@@ -400,24 +349,30 @@ struct PersonEditView: View {
     }
     
     private func addSocialMedia() {
-        let type = socialMediaType.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Use customPlatformName if type is Custom
+        let platform = (socialMediaType == "Custom") 
+            ? customPlatformName.trimmingCharacters(in: .whitespacesAndNewlines) 
+            : socialMediaType
+            
         let url = socialMediaUrl.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !type.isEmpty, !url.isEmpty else { return }
+        guard !platform.isEmpty, !url.isEmpty else { return }
         
-        switch type {
+        switch platform { // Check against the actual platform name
         case "Instagram": person.instagram = url
-        case "WhatsApp": person.whatsapp = url
+        case "WhatsApp": person.whatsapp = url // Store original input, might be username or number
         case "Facebook": person.facebook = url
         case "Twitter": person.twitter = url
         case "LinkedIn": person.linkedin = url
         default: // Custom
-            if !customSocialLinks.contains(where: { $0.key == type }) {
-                customSocialLinks.append((key: type, value: url))
+            if !customSocialLinks.contains(where: { $0.key == platform }) {
+                customSocialLinks.append((key: platform, value: url))
             }
         }
         
-        socialMediaType = "Instagram"
-        socialMediaUrl = ""
+        // Reset fields
+        socialMediaType = "Instagram" // Reset picker
+        customPlatformName = "" // Clear custom name field
+        socialMediaUrl = "" // Clear URL field
     }
     
     private func removeSocialMedia(type: String, index: Int?) {
@@ -434,58 +389,6 @@ struct PersonEditView: View {
         }
     }
 }
-
-// ---- Add SinglePersonSelectionSheet View ----
-struct SinglePersonSelectionSheet: View {
-    @Environment(\.presentationMode) var presentationMode
-    @ObservedObject var viewModel: LienViewModel
-    
-    let currentPersonId: UUID
-    var onPersonSelected: (Person) -> Void
-    
-    @State private var searchText: String = ""
-    
-    var availablePeople: [Person] {
-        let existingLinkIDs = Set(viewModel.getLinks(for: Person(id: currentPersonId, name: "", relationshipType: .other, meetFrequency: .monthly)).flatMap { [$0.person1ID, $0.person2ID] })
-        
-        let others = viewModel.personStore.people.filter { 
-             $0.id != currentPersonId && !existingLinkIDs.contains($0.id)
-        }
-        if searchText.isEmpty {
-            return others
-        } else {
-            return others.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
-        }
-    }
-    
-    var body: some View {
-        NavigationView {
-            VStack {
-                SearchBar(text: $searchText, placeholder: "Search person to link")
-                
-                List {
-                     if availablePeople.isEmpty {
-                        Text(searchText.isEmpty ? "No other people available to link." : "No matching people found.")
-                            .foregroundColor(.secondary)
-                     } else {
-                         ForEach(availablePeople) { person in
-                            Button(person.name) {
-                                onPersonSelected(person)
-                                presentationMode.wrappedValue.dismiss()
-                            }
-                            .foregroundColor(.primary)
-                        }
-                    }
-                }
-                .listStyle(PlainListStyle())
-            }
-            .navigationTitle("Select Person")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(leading: Button("Cancel") { presentationMode.wrappedValue.dismiss() })
-        }
-    }
-}
-// ---- End SinglePersonSelectionSheet View ----
 
 #Preview {
     Text("Preview requires context (e.g., a wrapper view)")

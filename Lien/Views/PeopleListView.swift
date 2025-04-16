@@ -28,57 +28,60 @@ struct PeopleListView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // Search bar - bind to viewModel.searchText
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(AppColor.secondaryText)
+            ZStack(alignment: .bottomTrailing) {
+                VStack(spacing: 0) {
+                    // Search bar - bind to viewModel.searchText
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(AppColor.secondaryText)
+                        
+                        TextField("Search people", text: $viewModel.searchText) // Bind to viewModel
+                            .foregroundColor(AppColor.text)
+                            .submitLabel(.search)
+                    }
+                    .padding()
+                    .background(AppColor.cardBackground)
+                    .cornerRadius(10)
+                    .padding(.horizontal)
                     
-                    TextField("Search people", text: $viewModel.searchText) // Bind to viewModel
-                        .foregroundColor(AppColor.text)
-                        .submitLabel(.search)
+                    // Filter Picker
+                    Picker("Filter", selection: $activeFilterCategory) {
+                        ForEach(PeopleListFilter.allCases, id: \.self) { filter in
+                            Text(filter.displayName).tag(filter)
+                        }
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                    .padding(.horizontal)
+                    .padding(.bottom, 10)
+                    
+                    // Display active tag filter if present - use viewModel.activeTagFilter
+                    if let activeTag = viewModel.activeTagFilter {
+                        activeFilterView(tag: activeTag)
+                    }
+                    
+                    if viewModel.personStore.people.isEmpty && viewModel.searchText.isEmpty && viewModel.activeTagFilter == nil {
+                        emptyStateView
+                    } else {
+                        peopleListContent // Renamed content view variable
+                    }
+                }
+                .background(AppColor.cardBackground)
+
+                Button(action: {
+                    showingAddPerson = true
+                }) {
+                    Image(systemName: "plus")
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Circle().fill(AppColor.accent))
+                        .shadow(radius: 4)
                 }
                 .padding()
-                .background(AppColor.cardBackground)
-                .cornerRadius(10)
-                .padding(.horizontal)
-                .padding(.bottom, 5) // Add slight padding below search
-                
-                // Filter Picker
-                Picker("Filter", selection: $activeFilterCategory) {
-                    ForEach(PeopleListFilter.allCases, id: \.self) { filter in
-                        Text(filter.displayName).tag(filter)
-                    }
-                }
-                .pickerStyle(SegmentedPickerStyle())
-                .padding(.horizontal)
-                .padding(.bottom, 10)
-                
-                // Display active tag filter if present - use viewModel.activeTagFilter
-                if let activeTag = viewModel.activeTagFilter {
-                    activeFilterView(tag: activeTag)
-                }
-                
-                if viewModel.personStore.people.isEmpty && viewModel.searchText.isEmpty && viewModel.activeTagFilter == nil {
-                    emptyStateView
-                } else {
-                    peopleListContent // Renamed content view variable
-                }
             }
-            .background(AppColor.cardBackground)
             .navigationTitle("Your People")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        showingAddPerson = true // Use renamed state var
-                    }) {
-                        Image(systemName: "plus")
-                    }
-                }
-            }
-            .sheet(isPresented: $showingAddPerson) { // Use renamed state var
+            .navigationBarTitleDisplayMode(.large)
+            .sheet(isPresented: $showingAddPerson) {
                 NavigationView {
-                    // Reference the renamed edit view
                     PersonEditView(viewModel: viewModel, isPresented: $showingAddPerson)
                         .navigationTitle("New Person")
                 }

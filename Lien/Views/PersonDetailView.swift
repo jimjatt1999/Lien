@@ -37,6 +37,9 @@ struct PersonDetailView: View {
                         .modifier(CardStyle())
                 }
                 
+                lifeEventsSection
+                    .modifier(CardStyle())
+                
                 if !person.interactionHistory.isEmpty {
                     interactionHistoryView
                         .modifier(CardStyle())
@@ -81,9 +84,13 @@ struct PersonDetailView: View {
             }
         }
         .sheet(isPresented: $showingLogInteractionSheet) {
-            LogInteractionView(personName: person.name) { type, note in
-                // Call the ViewModel to record interaction
-                viewModel.personStore.recordInteraction(for: person.id, type: type, note: note)
+            LogInteractionView(personName: person.name) { type, note, mood in
+                // Call the updated ViewModel method
+                if let mood = mood {
+                    viewModel.recordInteractionWithMood(for: person.id, type: type, note: note, mood: mood)
+                } else {
+                    viewModel.personStore.recordInteraction(for: person.id, type: type, note: note)
+                }
                 // Refresh local person state after saving
                 if let updatedPerson = viewModel.personStore.people.first(where: { $0.id == person.id }) {
                      person = updatedPerson
@@ -371,10 +378,18 @@ struct PersonDetailView: View {
                         .padding(.top, 2) // Align icon slightly better
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(log.date, style: .date)
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(AppColor.secondaryText)
+                        HStack {
+                            Text(log.date, style: .date)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(AppColor.secondaryText)
+                            
+                            // Show mood if available
+                            if let mood = person.interactionMoods[log.id] {
+                                Text(mood.emoji)
+                                    .font(.caption)
+                            }
+                        }
                         
                         if let note = log.note, !note.isEmpty {
                             Text(note)
@@ -399,6 +414,79 @@ struct PersonDetailView: View {
             }
             // TODO: Add 'View Full History' button?
         }
+    }
+    
+    private var lifeEventsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Life Events")
+                    .font(.headline)
+                
+                Spacer()
+            }
+            
+            if person.lifeEvents.isEmpty {
+                Text("No life events recorded yet")
+                    .foregroundColor(AppColor.secondaryText)
+                    .italic()
+                    .padding(.vertical, 8)
+            } else {
+                ForEach(person.lifeEvents.sorted(by: { $0.date > $1.date })) { event in
+                    lifeEventRow(event)
+                    
+                    if event != person.lifeEvents.sorted(by: { $0.date > $1.date }).last {
+                        Divider().padding(.leading, 36)
+                    }
+                }
+            }
+        }
+    }
+    
+    private func lifeEventRow(_ event: LifeEvent) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: event.type.iconName)
+                .foregroundColor(event.type.color)
+                .frame(width: 24, height: 24)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(event.title)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    Spacer()
+                    
+                    Text(formatDate(event.date))
+                        .font(.caption)
+                        .foregroundColor(AppColor.secondaryText)
+                }
+                
+                if let description = event.description, !description.isEmpty {
+                    Text(description)
+                        .font(.caption)
+                        .foregroundColor(AppColor.secondaryText)
+                }
+                
+                if let reminder = event.reminderFrequency, reminder != .none {
+                    HStack {
+                        Image(systemName: "bell")
+                            .font(.caption2)
+                        Text("Reminder: \(reminder.rawValue)")
+                            .font(.caption)
+                    }
+                    .foregroundColor(AppColor.accent)
+                    .padding(.top, 2)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
     }
 }
 

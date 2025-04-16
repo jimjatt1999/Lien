@@ -8,9 +8,10 @@ struct LogInteractionView: View {
     // State for the view
     @State private var interactionType: Person.InteractionType = .meeting // Default selection
     @State private var interactionNote: String = ""
+    @State private var selectedMood: Mood? = nil
     
-    // Callback to pass data back
-    var onSave: (Person.InteractionType, String?) -> Void
+    // Callback to pass data back (updated to include mood)
+    var onSave: (Person.InteractionType, String?, Mood?) -> Void
     
     var body: some View {
         NavigationView {
@@ -22,6 +23,37 @@ struct LogInteractionView: View {
                         }
                     }
                     .pickerStyle(SegmentedPickerStyle()) // Use segmented control for few options
+                }
+                
+                Section(header: Text("How did it make you feel?")) {
+                    HStack(spacing: 15) {
+                        ForEach(Mood.allCases, id: \.self) { mood in
+                            VStack {
+                                Text(mood.emoji)
+                                    .font(.system(size: 26))
+                                    .opacity(selectedMood == mood ? 1.0 : 0.6)
+                                
+                                Text(mood.rawValue)
+                                    .font(.caption)
+                                    .foregroundColor(selectedMood == mood ? mood.color : .secondary)
+                            }
+                            .padding(12)
+                            .background(
+                                selectedMood == mood ?
+                                    RoundedRectangle(cornerRadius: 12).fill(mood.color.opacity(0.2)) :
+                                    RoundedRectangle(cornerRadius: 12).fill(Color.clear)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(selectedMood == mood ? mood.color : Color.clear, lineWidth: 1)
+                            )
+                            .onTapGesture {
+                                selectedMood = mood
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .padding(.vertical, 8)
                 }
                 
                 Section(header: Text("Note (Optional)")) {
@@ -37,7 +69,7 @@ struct LogInteractionView: View {
                     .buttonStyle(PrimaryButtonStyle()) // Use existing style if available
                 }
             }
-            .navigationTitle("Log Interaction")
+            .navigationTitle("Log Interaction with \(personName)")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(leading: Button("Cancel") {
                 presentationMode.wrappedValue.dismiss()
@@ -47,14 +79,14 @@ struct LogInteractionView: View {
     
     private func saveAndDismiss() {
         let noteToSave = interactionNote.trimmingCharacters(in: .whitespacesAndNewlines)
-        onSave(interactionType, noteToSave.isEmpty ? nil : noteToSave)
+        onSave(interactionType, noteToSave.isEmpty ? nil : noteToSave, selectedMood)
         presentationMode.wrappedValue.dismiss()
     }
 }
 
 // Simple Preview
 #Preview {
-    LogInteractionView(personName: "Preview Person") { type, note in
-        print("Save tapped: \(type.rawValue), Note: \(note ?? "None")")
+    LogInteractionView(personName: "Preview Person") { type, note, mood in
+        print("Save tapped: \(type.rawValue), Note: \(note ?? "None"), Mood: \(mood?.rawValue ?? "None")")
     }
 } 
