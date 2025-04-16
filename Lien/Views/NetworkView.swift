@@ -8,6 +8,8 @@ struct NetworkView: View {
     @State private var nodeVelocities: [UUID: CGVector] = [:]
     @State private var isSimulating: Bool = true
     @State private var timer: Timer? = nil
+    @State private var showConnectionLabels: Bool = false // State for label visibility (default false)
+    @State private var hiddenRelationshipTypes: Set<Person.RelationshipType> = [] // State for filtering
     
     // State for pan/zoom
     @State private var currentScale: CGFloat = 1.0
@@ -41,25 +43,51 @@ struct NetworkView: View {
         .other: .purple
     ]
 
+    // Helper to get people excluding hidden types
+    private var visiblePeople: [Person] {
+        viewModel.personStore.people.filter { !hiddenRelationshipTypes.contains($0.relationshipType) }
+    }
+    
+    // Helper to check if a link should be visible
+    private func isLinkVisible(_ link: RelationshipLink) -> Bool {
+        guard let person1 = viewModel.personStore.people.first(where: { $0.id == link.person1ID }),
+              let person2 = viewModel.personStore.people.first(where: { $0.id == link.person2ID }) else {
+            return false // Don't show link if persons aren't found (shouldn't happen)
+        }
+        return !hiddenRelationshipTypes.contains(person1.relationshipType) && 
+               !hiddenRelationshipTypes.contains(person2.relationshipType)
+    }
+
     var body: some View {
         GeometryReader { geometry in
             // Use ZStack instead of Canvas
             ZStack {
-                // Background (can remain)
-                Color.black.edgesIgnoringSafeArea(.all)
+                // Use adaptive background
+                AppColor.primaryBackground.edgesIgnoringSafeArea(.all)
 
                 // Layer for Explicit Peer-to-Peer Connection Lines (drawn behind nodes)
-                ForEach(viewModel.linkStore.links) { link in
+                ForEach(viewModel.linkStore.links.filter { isLinkVisible($0) }) { link in
                     if let pos1 = nodePositions[link.person1ID], let pos2 = nodePositions[link.person2ID] {
                         let mockStrength = 0.7 // Keep mock strength for peer links for now
                         let lineWidth = connectionLineWidth * (0.5 + mockStrength * 0.5)
                         
+                        // Draw the line
                         Path { path in
                             path.move(to: pos1)
                             path.addLine(to: pos2)
                         }
-                        // Style for peer-to-peer links (e.g., subtle gray)
-                        .stroke(Color.gray.opacity(0.5), lineWidth: lineWidth * 0.8) // Make them slightly thinner/dimmer
+                        .stroke(Color.gray.opacity(0.5), lineWidth: lineWidth * 0.8)
+                        
+                        // Conditionally add the label
+                        if showConnectionLabels { 
+                             Text(link.label)
+                                 .font(.system(size: 8)) // Keep font size small
+                                 .padding(2)
+                                 .foregroundColor(AppColor.text.opacity(0.9)) // Use adaptive text color
+                                 .background(AppColor.cardBackground.opacity(0.6)) // Use adaptive background
+                                 .cornerRadius(4)
+                                 .position(x: (pos1.x + pos2.x) / 2, y: (pos1.y + pos2.y) / 2)
+                        }
                     }
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height) 
@@ -68,7 +96,7 @@ struct NetworkView: View {
                 
                 // Layer for Implicit "You"-to-Person Connection Lines (drawn behind nodes)
                 if let userPos = nodePositions[userNodeID] {
-                    ForEach(viewModel.personStore.people) { person in
+                    ForEach(visiblePeople) { person in
                         if let personPos = nodePositions[person.id] {
                             Path { path in
                                 path.move(to: userPos)
@@ -87,7 +115,7 @@ struct NetworkView: View {
                 }
 
                 // Layer for Nodes (drawn on top of lines)
-                ForEach(viewModel.personStore.people) { person in
+                ForEach(visiblePeople) { person in
                     if let position = nodePositions[person.id] {
                         // Wrap Node in NavigationLink
                         NavigationLink(destination: PersonDetailView(viewModel: viewModel, person: person)) {
@@ -113,9 +141,9 @@ struct NetworkView: View {
                         } else {
                             // Fallback placeholder
                             Circle()
-                                .fill(Color.white) // Keep white background for contrast
+                                .fill(AppColor.cardBackground) // Use adaptive card background
                                 .frame(width: userNodeSize, height: userNodeSize)
-                                .overlay(Text("You").font(.caption).foregroundColor(.black))
+                                .overlay(Text("You").font(.caption).foregroundColor(AppColor.text)) // Adaptive text
                         }
                     }
                     .overlay(Circle().stroke(Color.gray, lineWidth: 2)) // Keep overlay border
@@ -128,13 +156,24 @@ struct NetworkView: View {
                 // Legend and Controls can stay on top
                 VStack {
                     HStack {
+                        // Toggle for labels on the left
+                        Toggle(isOn: $showConnectionLabels) {
+                             Label("Show Labels", systemImage: "tag.fill")
+                         }
+                         .toggleStyle(.button)
+                         .tint(AppColor.secondaryText) // Adaptive tint
+                         .font(.caption)
+                         .padding(.leading)
+                        
                         Spacer()
+                        
+                        // Simulation button on the right
                         Button(action: { isSimulating.toggle() }) {
                             Image(systemName: isSimulating ? "pause.circle.fill" : "play.circle.fill")
                                 .font(.title)
-                                .foregroundColor(.white)
+                                .foregroundColor(AppColor.text) // Adaptive color
                         }
-                        .padding()
+                        .padding(.trailing)
                     }
                     Spacer()
                     relationshipLegend
@@ -168,12 +207,17 @@ struct NetworkView: View {
                         .frame(width: 10, height: 10)
                     Text(type.displayName)
                         .font(.caption)
-                        .foregroundColor(.white)
+                        .foregroundColor(AppColor.text)
+                }
+                // Add visual feedback and tap gesture
+                .opacity(hiddenRelationshipTypes.contains(type) ? 0.4 : 1.0) // Dim if hidden
+                .onTapGesture {
+                    toggleRelationshipTypeVisibility(type)
                 }
             }
         }
         .padding(8)
-        .background(Color.black.opacity(0.7))
+        .background(AppColor.cardBackground.opacity(0.7)) // Adaptive background
         .cornerRadius(8)
     }
 
@@ -334,6 +378,16 @@ struct NetworkView: View {
                  previousScale = 1.0
              }
     }
+
+    // MARK: - Filtering Logic
+    
+    private func toggleRelationshipTypeVisibility(_ type: Person.RelationshipType) {
+        if hiddenRelationshipTypes.contains(type) {
+            hiddenRelationshipTypes.remove(type)
+        } else {
+            hiddenRelationshipTypes.insert(type)
+        }
+    }
 }
 
 // MARK: - Helper View for Node
@@ -379,6 +433,7 @@ extension Person.RelationshipHealthStatus {
         case .stable: return 1.2
         case .needsAttention: return 0.8
         case .unknown: return 0.6 // Thinner for unknown
+        case .automatic: return 0.6 // Handle the automatic case (same as unknown)
         }
     }
 }

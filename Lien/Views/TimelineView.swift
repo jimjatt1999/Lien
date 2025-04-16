@@ -1,4 +1,5 @@
 import SwiftUI
+import EventKit
 
 struct TimelineView: View {
     @ObservedObject var viewModel: LienViewModel
@@ -18,6 +19,10 @@ struct TimelineView: View {
         }
     }
     @State private var addLifeEventFlow: AddLifeEventFlow? = nil
+    
+    // State for alerts
+    @State private var showingCalendarAlert = false
+    @State private var calendarAlertMessage = ""
     
     // Group the timeline entries by date section
     private var groupedTimelineEntries: [DateSection: [TimelineEntry]] {
@@ -92,6 +97,9 @@ struct TimelineView: View {
                 }
             }
         }
+        .alert(isPresented: $showingCalendarAlert) {
+            Alert(title: Text("Calendar Action"), message: Text(calendarAlertMessage), dismissButton: .default(Text("OK")))
+        }
     }
     
     private func timelineSectionView(title: String, entries: [TimelineEntry]) -> some View {
@@ -124,36 +132,53 @@ struct TimelineView: View {
             destination = AnyView(Text("Details for \(entry.title)"))
         }
         
-        return NavigationLink(destination: destination) {
-            HStack(alignment: .top, spacing: 12) {
-                // Icon based on entry type
-                Image(systemName: entry.iconName)
-                    .foregroundColor(entry.iconColor)
-                    .frame(width: 24, height: 24)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(entry.title)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
+        // Add explicit return before the HStack
+        return HStack(alignment: .top, spacing: 12) {
+            // NavigationLink wrapping the content
+            NavigationLink(destination: destination) {
+                HStack(alignment: .top, spacing: 12) {
+                    // Icon
+                    Image(systemName: entry.iconName)
+                        .foregroundColor(entry.iconColor)
+                        .frame(width: 24, height: 24)
+                    
+                    // Text Content
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(entry.title)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            
+                            if entry.showDate {
+                                Spacer()
+                                Text(entry.formattedDate)
+                                    .font(.caption)
+                                    .foregroundColor(AppColor.secondaryText)
+                            }
+                        }
                         
-                        if entry.showDate {
-                            Spacer()
-                            Text(entry.formattedDate)
+                        if let subtitle = entry.subtitle {
+                            Text(subtitle)
                                 .font(.caption)
                                 .foregroundColor(AppColor.secondaryText)
                         }
                     }
-                    
-                    if let subtitle = entry.subtitle {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundColor(AppColor.secondaryText)
-                    }
+                     Spacer() // Push content left before button
                 }
             }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Add Calendar button conditionally
+            if entry.entryType == .birthday || entry.entryType == .anniversary {
+                Button {
+                    addEventToCalendar(entry: entry)
+                } label: {
+                    Image(systemName: "calendar.badge.plus")
+                        .foregroundColor(AppColor.accent)
+                }
+                .buttonStyle(BorderlessButtonStyle()) // Use borderless to avoid affecting layout
+            }
         }
-        .buttonStyle(PlainButtonStyle()) // Ensures the link row looks clean
     }
     
     private var recentInteractionsView: some View {
@@ -234,6 +259,45 @@ struct TimelineView: View {
             }
         }
         .buttonStyle(PlainButtonStyle())
+    }
+    
+    // MARK: - Calendar Integration
+    
+    private func addEventToCalendar(entry: TimelineEntry) {
+        // Ensure calendar access
+        guard viewModel.calendarManager.hasCalendarAccess else {
+            viewModel.calendarManager.requestCalendarAccess { granted, error in
+                if granted {
+                    // Access granted, try adding again
+                    self.addEventToCalendar(entry: entry)
+                } else {
+                    // Access denied
+                    calendarAlertMessage = "Calendar access is required to add events. Please grant access in Settings."
+                    showingCalendarAlert = true
+                }
+            }
+            return // Exit for now, will retry if access granted
+        }
+        
+        // Prepare event details
+        let title = entry.title
+        let startDate = entry.date // Assuming this is the correct date for the event
+        // Make birthday/anniversary all-day events
+        let allDayEvent = EKEvent(eventStore: viewModel.calendarManager.eventStore)
+        allDayEvent.isAllDay = true
+        allDayEvent.title = title
+        allDayEvent.startDate = Calendar.current.startOfDay(for: startDate) // Start of the day
+        allDayEvent.endDate = Calendar.current.startOfDay(for: startDate)   // End of the day (EventKit handles all-day)
+        allDayEvent.calendar = viewModel.calendarManager.eventStore.defaultCalendarForNewEvents
+
+        // Use the CalendarManager helper
+        do {
+            try viewModel.calendarManager.eventStore.save(allDayEvent, span: .thisEvent)
+            calendarAlertMessage = "\(title) added to your calendar."
+        } catch {
+            calendarAlertMessage = "Failed to add event: \(error.localizedDescription)"
+        }
+        showingCalendarAlert = true
     }
 }
 

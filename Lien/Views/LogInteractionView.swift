@@ -9,9 +9,10 @@ struct LogInteractionView: View {
     @State private var interactionType: Person.InteractionType = .meeting // Default selection
     @State private var interactionNote: String = ""
     @State private var selectedMood: Mood? = nil
+    @State private var location: String = "" // Add state for location
     
-    // Callback to pass data back (updated to include mood)
-    var onSave: (Person.InteractionType, String?, Mood?) -> Void
+    // Callback to pass data back (updated to include location and mood)
+    var onSave: (Person.InteractionType, String?, String?, Mood?) -> Void // Add String? for location
     
     var body: some View {
         NavigationView {
@@ -23,6 +24,11 @@ struct LogInteractionView: View {
                         }
                     }
                     .pickerStyle(SegmentedPickerStyle()) // Use segmented control for few options
+                    
+                    // Conditionally show Location field
+                    if interactionType == .meeting {
+                        TextField("Location (Optional)", text: $location)
+                    }
                 }
                 
                 Section(header: Text("How did it make you feel?")) {
@@ -79,14 +85,18 @@ struct LogInteractionView: View {
     
     private func saveAndDismiss() {
         let noteToSave = interactionNote.trimmingCharacters(in: .whitespacesAndNewlines)
-        onSave(interactionType, noteToSave.isEmpty ? nil : noteToSave, selectedMood)
+        let locationToSave = location.trimmingCharacters(in: .whitespacesAndNewlines)
+        onSave(interactionType,
+               noteToSave.isEmpty ? nil : noteToSave,
+               locationToSave.isEmpty ? nil : locationToSave,
+               selectedMood)
         presentationMode.wrappedValue.dismiss()
     }
 }
 
 // Simple Preview
 #Preview {
-    LogInteractionView(personName: "Preview Person") { type, note, mood in
-        print("Save tapped: \(type.rawValue), Note: \(note ?? "None"), Mood: \(mood?.rawValue ?? "None")")
+    LogInteractionView(personName: "Preview Person") { type, note, location, mood in
+        print("Save tapped: \(type.rawValue), Note: \(note ?? "None"), Location: \(location ?? "None"), Mood: \(mood?.rawValue ?? "None")")
     }
 } 

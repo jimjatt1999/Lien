@@ -1,4 +1,5 @@
 import SwiftUI
+import EventKit // Import EventKit
 
 // Renamed from ContactDetailView
 struct PersonDetailView: View {
@@ -6,6 +7,10 @@ struct PersonDetailView: View {
     @State private var person: Person // Use @State for local mutations/refresh
     @State private var showingEditSheet = false
     @State private var showingLogInteractionSheet = false
+    @State private var showingFullHistorySheet = false
+    @State private var showingCalendarAlert = false // Add state for alert
+    @State private var calendarAlertMessage = ""   // Add state for alert message
+    @State private var showingHealthPicker = false // Add state for health picker sheet
     
     init(viewModel: LienViewModel, person: Person) {
         self.viewModel = viewModel
@@ -84,18 +89,26 @@ struct PersonDetailView: View {
             }
         }
         .sheet(isPresented: $showingLogInteractionSheet) {
-            LogInteractionView(personName: person.name) { type, note, mood in
-                // Call the updated ViewModel method
-                if let mood = mood {
-                    viewModel.recordInteractionWithMood(for: person.id, type: type, note: note, mood: mood)
-                } else {
-                    viewModel.personStore.recordInteraction(for: person.id, type: type, note: note)
-                }
+            LogInteractionView(personName: person.name) { type, note, location, mood in
+                // Call the updated ViewModel method, passing location
+                viewModel.recordInteractionWithMood(for: person.id, type: type, note: note, location: location, mood: mood)
                 // Refresh local person state after saving
                 if let updatedPerson = viewModel.personStore.people.first(where: { $0.id == person.id }) {
                      person = updatedPerson
                 }
             }
+        }
+        .sheet(isPresented: $showingFullHistorySheet) {
+            InteractionHistoryView(person: person)
+        }
+        .sheet(isPresented: $showingHealthPicker) {
+            HealthPickerView(selectedHealthStatus: $person.manualHealthOverride)
+                .onDisappear {
+                    viewModel.personStore.updatePerson(person)
+                }
+        }
+        .alert(isPresented: $showingCalendarAlert) {
+            Alert(title: Text("Calendar Action"), message: Text(calendarAlertMessage), dismissButton: .default(Text("OK")))
         }
         .onChange(of: viewModel.personStore.people) { _, newPeople in
             // Ensure local state updates if person is modified elsewhere
@@ -116,15 +129,24 @@ struct PersonDetailView: View {
                 .padding(.top)
             
             HStack(spacing: 8) {
-                 // Name moved to navigation title
                  Circle()
                     .fill(person.relationshipHealth.color)
                     .frame(width: 15, height: 15)
                     .padding(.bottom, 5)
-                Text(person.relationshipHealth.description)
-                    .font(.subheadline)
-                    .foregroundColor(person.relationshipHealth.color)
+                 Text(person.relationshipHealth.description)
+                     .font(.subheadline)
+                     .foregroundColor(person.relationshipHealth.color)
+                 if person.manualHealthOverride != nil {
+                     Image(systemName: "hand.point.up.left.fill")
+                         .font(.caption2)
+                         .foregroundColor(.gray)
+                 }
             }
+            .padding(5)
+            .background(Color.gray.opacity(0.001))
+            .onTapGesture {
+                 showingHealthPicker = true
+             }
             
             if !person.tags.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -190,9 +212,7 @@ struct PersonDetailView: View {
                 }
             }
             interactionOptionButton(icon: "calendar.badge.plus", title: "Schedule") {
-                if let url = URL(string: "calshow://") {
-                    UIApplication.shared.open(url)
-                }
+                scheduleInteractionWithPerson()
             }
         }
     }
@@ -363,9 +383,17 @@ struct PersonDetailView: View {
     }
     
     var interactionHistoryView: some View {
-        VStack(alignment: .leading, spacing: 12) { // Adjusted spacing
-            Text("Interaction History")
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                 Text("Recent Interactions") // Changed title slightly
+                     .font(.headline)
+                 Spacer()
+                 // Add Button to show full history
+                 Button("View All") {
+                     showingFullHistorySheet = true
+                 }
+                 .font(.callout)
+             }
             
             // Display latest 5 interactions
             ForEach(person.interactionHistory.prefix(5)) { log in
@@ -412,7 +440,6 @@ struct PersonDetailView: View {
                      Divider().padding(.leading, 27) // Indent divider past icon
                 }
             }
-            // TODO: Add 'View Full History' button?
         }
     }
     
@@ -487,6 +514,38 @@ struct PersonDetailView: View {
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
         return formatter.string(from: date)
+    }
+    
+    // MARK: - Calendar Integration
+    
+    private func scheduleInteractionWithPerson() {
+        // Check/request access first
+        guard viewModel.calendarManager.hasCalendarAccess else {
+            viewModel.calendarManager.requestCalendarAccess { granted, error in
+                if granted {
+                    self.scheduleInteractionWithPerson() // Retry if granted
+                } else {
+                    calendarAlertMessage = "Calendar access is required to schedule events. Please grant access in Settings."
+                    showingCalendarAlert = true
+                }
+            }
+            return
+        }
+        
+        // Create event details
+        let title = "Connect with \(person.name)"
+        let startDate = Date() // Default to now, user can adjust in Calendar app
+        let endDate = Calendar.current.date(byAdding: .hour, value: 1, to: startDate)! // Default 1 hour duration
+        
+        // Call the manager to add the event
+        viewModel.calendarManager.addEventToCalendar(title: title, startDate: startDate, endDate: endDate) { success, error in
+            if success {
+                calendarAlertMessage = "Event draft added to your calendar. You can adjust the time there."
+            } else {
+                calendarAlertMessage = "Failed to add event draft: \(error?.localizedDescription ?? "Unknown error")"
+            }
+            showingCalendarAlert = true
+        }
     }
 }
 

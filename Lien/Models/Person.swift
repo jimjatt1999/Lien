@@ -4,9 +4,17 @@ import SwiftUI
 // Renamed from InteractionLog
 struct InteractionLog: Identifiable, Codable, Equatable {
     let id = UUID()
-    var date: Date = Date()
-    var type: Person.InteractionType // Updated reference
+    let date: Date
+    let type: Person.InteractionType
     var note: String?
+    var location: String?
+    
+    init(id: UUID = UUID(), date: Date = Date(), type: Person.InteractionType, note: String? = nil) {
+        self.date = date
+        self.type = type
+        self.note = note
+        self.location = nil
+    }
 }
 
 // Renamed from Contact
@@ -180,17 +188,23 @@ struct Person: Identifiable, Codable, Equatable {
         }
     }
     
+    // MARK: - Health Status Calculations
+
+    var manualHealthOverride: RelationshipHealthStatus? // Property to store manual override
+
     // Health Status Enum
-    enum RelationshipHealthStatus {
-        case thriving, stable, needsAttention, unknown
+    enum RelationshipHealthStatus: String, Codable, CaseIterable { // Add Codable, CaseIterable
+        case thriving = "Thriving"
+        case stable = "Stable"
+        case needsAttention = "Needs Attention"
+        case unknown = "Unknown"
+        
+        // Add a case for automatic/clearing the override
+        case automatic = "Use Automatic"
         
         var description: String {
-            switch self {
-            case .thriving: return "Thriving"
-            case .stable: return "Stable"
-            case .needsAttention: return "Needs Attention"
-            case .unknown: return "Unknown"
-            }
+            // Raw value is already the description
+            return self.rawValue
         }
         
         var color: Color {
@@ -199,17 +213,29 @@ struct Person: Identifiable, Codable, Equatable {
             case .stable: return .yellow
             case .needsAttention: return .red
             case .unknown: return .gray
+            case .automatic: return .clear // No specific color for automatic option in picker
             }
         }
+        
+        // Filter out 'automatic' for display purposes where needed
+        static var selectableCases: [RelationshipHealthStatus] {
+             return Self.allCases.filter { $0 != .automatic }
+         }
     }
 
     // Computed property for Health Status
     var relationshipHealth: RelationshipHealthStatus {
-        switch self.relationshipStatus { // Based directly on relationshipStatus for now
-        case .recent: return .thriving
-        case .approaching: return .stable
-        case .due: return .needsAttention
-        case .unknown: return .unknown
+        // Prioritize manual override
+        if let manualOverride = manualHealthOverride {
+            return manualOverride
+        }
+        
+        // Fallback to automatic calculation
+        switch self.relationshipStatus { 
+            case .recent: return .thriving
+            case .approaching: return .stable
+            case .due: return .needsAttention
+            case .unknown: return .unknown
         }
     }
     

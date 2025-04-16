@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import EventKit
 
 class LienViewModel: ObservableObject {
     @Published var personStore = PersonStore()
@@ -10,6 +11,9 @@ class LienViewModel: ObservableObject {
     @Published var spontaneousSuggestion: Person? = nil // State for spontaneous suggestion
     
     @Published var connectionGoals: [ConnectionGoal] = [] // Connection goals
+    
+    // Add Calendar Manager
+    @Published var calendarManager = CalendarManager()
     
     // Needed for filtering in PeopleListView
     @Published var activeTagFilter: String? = nil
@@ -384,9 +388,13 @@ class LienViewModel: ObservableObject {
     
     // MARK: - Mood Tracking
     
-    func recordInteractionWithMood(for personId: UUID, type: Person.InteractionType, note: String? = nil, mood: Mood? = nil) {
+    // Updated function to accept optional location
+    func recordInteractionWithMood(for personId: UUID, type: Person.InteractionType, note: String? = nil, location: String? = nil, mood: Mood? = nil) {
         if var person = personStore.people.first(where: { $0.id == personId }) {
-            let interaction = InteractionLog(type: type, note: note)
+            var interaction = InteractionLog(type: type, note: note)
+            // Assign location if provided and not empty
+            interaction.location = (location?.isEmpty ?? true) ? nil : location
+            
             person.interactionHistory.append(interaction)
             
             if let mood = mood {

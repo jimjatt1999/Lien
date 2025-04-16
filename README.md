@@ -1,8 +1,29 @@
-# Lien - Mindful Connection Keeper
+# Lien: Your Minimalist Relationship Companion
 
-Lien is an iOS application designed to help users mindfully nurture and maintain their important personal relationships. It focuses on visualizing time, tracking interactions, and providing gentle reminders to connect with friends, family, and colleagues.
+Lien is a SwiftUI application designed to help you mindfully nurture the important relationships in your life. It provides tools to track interactions, remember important dates, visualize your social network, and gain perspective on the time you share with others.
 
-Inspired by concepts of time perception and the value of human connection, Lien aims for a clean, minimalist, and thoughtful user experience.
+## Core Features
+
+*   **People Management:** Add and edit details for the important people in your life, including contact info, birthdays, anniversaries, relationship type, connection frequency goals, notes, and tags.
+*   **Timeline View:** A centralized view showing upcoming birthdays, anniversaries, life events, and suggestions for who to connect with next based on your desired frequency.
+*   **Interaction Logging:** Record meetings, calls, or messages with individuals. Track optional details like location (for meetings) and how the interaction made you feel (Mood tracking).
+*   **Relationship Health:** Automatically assesses the health of a relationship based on your connection frequency goals and last contact date. Allows manual overrides for a more personalized status.
+*   **Network View:** A dynamic, force-directed graph visualizing your connections. Nodes represent people (including yourself), and lines show explicit links you create between individuals, as well as implicit links from you to everyone else (styled by relationship health).
+*   **Life Events:** Log significant life events (new job, graduation, etc.) for people, which appear on their profile and the main timeline.
+*   **Contact Import:** Quickly populate your list by importing contacts directly from your device's address book.
+*   **Calendar Integration:** Add birthdays/anniversaries to your calendar from the timeline, or create draft calendar events to schedule connections directly from a person's profile.
+*   **Time Perspective:** Visualizations showing estimated weeks and interactions remaining with individuals, based on age and life expectancy, promoting mindful connection.
+*   **Splash Screen:** A custom launch screen introducing the app's concept.
+*   **(Basic) Connection Goals:** Underlying structure to define connection goals (though the dedicated UI is pending).
+
+## Purpose
+
+In a busy world, Lien aims to be a simple, private tool to help you be more intentional about maintaining the bonds that matter most.
+
+## Setup (If applicable)
+
+*   Requires Xcode [Your Xcode Version] and iOS [Your Target iOS Version].
+*   Remember to add `Privacy - Contacts Usage Description` and `Privacy - Calendars Usage Description` keys to your `Info.plist` for contact import and calendar features to function correctly.
 
 ## Key Features
 
